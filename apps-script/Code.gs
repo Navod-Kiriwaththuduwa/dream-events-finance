@@ -44,6 +44,8 @@ function routeRequest_(req) {
   if (action === 'listBudgetTargets') return listBudgetTargets_(user, data);
   if (action === 'createBudgetLine') return createBudgetLine_(user, data);
   if (action === 'updateBudgetLine') return updateBudgetLine_(user, data);
+  if (action === 'moveBudgetLine') return moveBudgetLine_(user, data);
+  if (action === 'duplicateBudgetLine') return duplicateBudgetLine_(user, data);
   if (action === 'deleteBudgetLine') return deleteBudgetLine_(user, data);
   if (action === 'listExpenses') return listExpenses_(user);
   if (action === 'createExpense') return createExpense_(user, data);

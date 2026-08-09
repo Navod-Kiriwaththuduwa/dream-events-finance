@@ -1,6 +1,6 @@
 # Dream Events Finance Platform
 
-Version 1.1 foundation for Dream Events: a responsive finance and event-management web app designed for GitHub Pages with Google Apps Script + Google Sheets + Google Drive as the business backend.
+Version 1.2 foundation for Dream Events: a responsive finance and event-management web app designed for GitHub Pages with Google Apps Script + Google Sheets + Google Drive as the business backend.
 
 ## Included in this milestone
 
@@ -27,21 +27,6 @@ Open `index.html` through a local/static web server or GitHub Pages.
 - Team Member: `team` / `demo123`
 
 Demo data is stored in browser localStorage only. It is not production data.
-
-
-## V1.1 budget engine update
-
-This package now also includes:
-
-- Editable event details after creation
-- Event detail workspace with Overview / Budget / Expenses / Income tabs
-- Finance Head-only hierarchical budget planner: Main Item → Sub Item → Detailed Item
-- Estimated quantity, unit cost, total cost, customer selling price and budget variance
-- Actual quantity/unit-cost capture
-- Approved expenses can be linked to a Detailed Budget Item and automatically feed its actual cost
-- Estimated revenue/cost/profit/margin and actual revenue/cost/profit/margin
-- Customer pricing can be grouped at Sub Item level or priced at Detailed Item level without double-counting
-- Team Members can select budget detail targets when recording an expense, but cannot view internal costs/profit/margins
 
 ## Production deployment
 
@@ -115,7 +100,6 @@ apps-script/
   Auth.gs
   Customers.gs
   Events.gs
-  Budget.gs
   Transactions.gs
   Dashboard.gs
   appsscript.json
@@ -126,11 +110,27 @@ docs/
 
 ## Next build modules
 
-1. Package templates
-2. Quotation versioning + branded PDF generation
-3. Invoice/payment plan/receipt generation
-4. File upload to Drive for bills and proofs
-5. Refunds/reopen/reversal workflows
-6. Inventory reservations and internal cost per use
-7. Reimbursements/payables settlement
-8. Reports and cash flow
+1. Hierarchical Main Item → Sub Item → Detailed Item budget editor
+2. Package templates
+3. Quotation versioning + branded PDF generation
+4. Invoice/payment plan/receipt generation
+5. File upload to Drive for bills and proofs
+6. Refunds/reopen/reversal workflows
+7. Inventory reservations and internal cost per use
+8. Reimbursements/payables settlement
+9. Reports and cash flow
+
+
+## V1.2 budget UX refinement
+
+This update improves the event budget workspace without changing the core three-level model:
+
+- Collapse/expand Main Items and Sub Items
+- Move Main/Sub/Detailed items up or down
+- Duplicate a Main Item with its full subtree, a Sub Item with its details, or a single Detailed Item
+- Clearer customer-visible pricing badges
+- Stronger Main Item and Sub Item subtotals
+- Variance wording now shows **Under budget**, **Over budget**, or **On budget** instead of signed values
+- Improved action labels/tooltips and responsive budget layout
+
+Package templates and quotation generation remain planned for the next module.

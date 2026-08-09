@@ -15,7 +15,7 @@ function budgetSummary_(eventId,lines){
   const linkedByLine={};details.forEach(d=>linkedByLine[d.Budget_Line_ID]=approved.filter(x=>x.Budget_Line_ID===d.Budget_Line_ID).reduce((a,b)=>a+Number(b.Amount||0),0));
   const estimatedCost=details.reduce((a,d)=>a+Number(d.Estimated_Qty||0)*Number(d.Estimated_Unit_Cost||0),0);
   let estimatedRevenue=0;
-  subs.forEach(s=>{const own=Number(s.Selling_Price||0);if(own>0)estimatedRevenue+=own;else estimatedRevenue+=details.filter(d=>d.Parent_Line_ID===s.Budget_Line_ID).reduce((a,d)=>a+Number(d.Selling_Price||0),0);});
+  subs.forEach(s=>{const own=Number(s.Selling_Price||0),visible=String(s.Quotation_Visible).toLowerCase()!=='false';if(own>0&&visible)estimatedRevenue+=own;else estimatedRevenue+=details.filter(d=>d.Parent_Line_ID===s.Budget_Line_ID&&String(d.Quotation_Visible).toLowerCase()!=='false').reduce((a,d)=>a+Number(d.Selling_Price||0),0);});
   const actualLineCost=details.reduce((a,d)=>{const linked=Number(linkedByLine[d.Budget_Line_ID]||0),manual=Number(d.Actual_Qty||0)*Number(d.Actual_Unit_Cost||0);return a+(linked>0?linked:manual);},0);
   const approvedUnlinked=approved.filter(x=>!x.Budget_Line_ID).reduce((a,b)=>a+Number(b.Amount||0),0);
   const actualCost=actualLineCost+approvedUnlinked;
@@ -48,6 +48,34 @@ function updateBudgetLine_(user,data){
   if('estimatedQty'in data)patch.Estimated_Qty=Number(data.estimatedQty||0);if('estimatedUnitCost'in data)patch.Estimated_Unit_Cost=Number(data.estimatedUnitCost||0);if('sellingPrice'in data)patch.Selling_Price=Number(data.sellingPrice||0);if('actualQty'in data)patch.Actual_Qty=Number(data.actualQty||0);if('actualUnitCost'in data)patch.Actual_Unit_Cost=Number(data.actualUnitCost||0);if('quotationVisible'in data)patch.Quotation_Visible=data.quotationVisible!==false;
   const estQty='Estimated_Qty'in patch?patch.Estimated_Qty:Number(r.Estimated_Qty||0),estUnit='Estimated_Unit_Cost'in patch?patch.Estimated_Unit_Cost:Number(r.Estimated_Unit_Cost||0),actQty='Actual_Qty'in patch?patch.Actual_Qty:Number(r.Actual_Qty||0),actUnit='Actual_Unit_Cost'in patch?patch.Actual_Unit_Cost:Number(r.Actual_Unit_Cost||0);patch.Estimated_Total_Cost=estQty*estUnit;patch.Actual_Total_Cost=actQty*actUnit;patch.Variance=patch.Actual_Total_Cost-patch.Estimated_Total_Cost;
   updateObjectRow_('06_BUDGET_LINES',r._row,patch);const updated=Object.assign({},r,patch);audit_(user,'UPDATE_BUDGET_LINE','BUDGETS',r.Budget_Line_ID,r,updated,'',{});return mapBudgetLine_(updated);
+}
+function moveBudgetLine_(user,data){
+  requireFinance_(user);requireFields_(data,['budgetLineId','direction']);
+  const r=findOne_('06_BUDGET_LINES','Budget_Line_ID',data.budgetLineId);if(!r||r.Status==='ARCHIVED')throw new Error('Budget line not found.');
+  const siblings=getRows_('06_BUDGET_LINES').filter(x=>x.Event_ID===r.Event_ID&&x.Level===r.Level&&String(x.Parent_Line_ID||'')===String(r.Parent_Line_ID||'')&&x.Status!=='ARCHIVED').sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0)||Number(a._row||0)-Number(b._row||0));
+  siblings.forEach((x,i)=>{if(Number(x.Display_Order||0)!==i+1)updateObjectRow_('06_BUDGET_LINES',x._row,{Display_Order:i+1});x.Display_Order=i+1;});
+  const i=siblings.findIndex(x=>x.Budget_Line_ID===r.Budget_Line_ID),dir=String(data.direction||'').toUpperCase(),j=dir==='UP'?i-1:i+1;
+  if(i<0||j<0||j>=siblings.length)return true;
+  const a=siblings[i],b=siblings[j],ao=Number(a.Display_Order||i+1),bo=Number(b.Display_Order||j+1);
+  updateObjectRow_('06_BUDGET_LINES',a._row,{Display_Order:bo});updateObjectRow_('06_BUDGET_LINES',b._row,{Display_Order:ao});
+  audit_(user,'MOVE_BUDGET_LINE','BUDGETS',r.Budget_Line_ID,{Display_Order:ao},{Display_Order:bo},dir,{});
+  return true;
+}
+function duplicateBudgetLine_(user,data){
+  requireFinance_(user);requireFields_(data,['budgetLineId']);
+  const source=findOne_('06_BUDGET_LINES','Budget_Line_ID',data.budgetLineId);if(!source||source.Status==='ARCHIVED')throw new Error('Budget line not found.');
+  const all=getRows_('06_BUDGET_LINES').filter(x=>x.Event_ID===source.Event_ID&&x.Status!=='ARCHIVED');
+  function nextOrder_(level,parentId){const vals=all.filter(x=>x.Level===level&&String(x.Parent_Line_ID||'')===String(parentId||'')).map(x=>Number(x.Display_Order||0));return (vals.length?Math.max.apply(null,vals):0)+1;}
+  function clone_(node,newParent,isRoot){
+    const id=nextNumber_('BUDGET_LINE','DE-BLN-',6);
+    const rec={Budget_Line_ID:id,Budget_ID:node.Budget_ID,Event_ID:node.Event_ID,Level:node.Level,Parent_Line_ID:newParent||'',Main_Item:node.Main_Item||'',Sub_Item:node.Sub_Item||'',Detailed_Item:node.Detailed_Item||'',Description:node.Description||'',Supplier_ID:node.Supplier_ID||'',Estimated_Qty:Number(node.Estimated_Qty||0),Unit:node.Unit||'',Estimated_Unit_Cost:Number(node.Estimated_Unit_Cost||0),Estimated_Total_Cost:Number(node.Estimated_Total_Cost||0),Selling_Price:Number(node.Selling_Price||0),Actual_Qty:0,Actual_Unit_Cost:0,Actual_Total_Cost:0,Variance:-Number(node.Estimated_Total_Cost||0),Quotation_Visible:String(node.Quotation_Visible).toLowerCase()!=='false',Internal_Notes:node.Internal_Notes||'',Display_Order:nextOrder_(node.Level,newParent||''),Status:'ACTIVE'};
+    if(isRoot){if(rec.Level==='MAIN')rec.Main_Item=(rec.Main_Item||'Item')+' Copy';if(rec.Level==='SUB')rec.Sub_Item=(rec.Sub_Item||'Item')+' Copy';if(rec.Level==='DETAIL')rec.Detailed_Item=(rec.Detailed_Item||'Item')+' Copy';}
+    appendObject_('06_BUDGET_LINES',rec);all.push(Object.assign({_row:0},rec));
+    all.filter(x=>x.Parent_Line_ID===node.Budget_Line_ID&&x.Status!=='ARCHIVED'&&x.Budget_Line_ID!==id).sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0)).forEach(child=>clone_(child,id,false));
+    return rec;
+  }
+  const cloned=clone_(source,source.Parent_Line_ID||'',true);audit_(user,'DUPLICATE_BUDGET_LINE','BUDGETS',source.Budget_Line_ID,source,cloned,'',{});
+  return mapBudgetLine_(cloned);
 }
 function deleteBudgetLine_(user,data){
   requireFinance_(user);requireFields_(data,['budgetLineId']);const r=findOne_('06_BUDGET_LINES','Budget_Line_ID',data.budgetLineId);if(!r||r.Status==='ARCHIVED')throw new Error('Budget line not found.');if(getRows_('06_BUDGET_LINES').some(x=>x.Parent_Line_ID===r.Budget_Line_ID&&x.Status!=='ARCHIVED'))throw new Error('Remove child items first.');if(getRows_('17_EXPENSES').some(x=>x.Budget_Line_ID===r.Budget_Line_ID&&x.Approval_Status!=='REJECTED'))throw new Error('This item has linked expenses and cannot be removed.');updateObjectRow_('06_BUDGET_LINES',r._row,{Status:'ARCHIVED'});audit_(user,'ARCHIVE_BUDGET_LINE','BUDGETS',r.Budget_Line_ID,r,null,'',{});return true;

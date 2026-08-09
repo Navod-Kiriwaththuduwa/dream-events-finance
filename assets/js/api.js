@@ -122,8 +122,8 @@
     let estimatedRevenue = 0;
     subs.forEach(s=>{
       const own = Number(s.sellingPrice||0);
-      if (own > 0) estimatedRevenue += own;
-      else estimatedRevenue += details.filter(d=>d.parentLineId===s.budgetLineId).reduce((a,d)=>a+Number(d.sellingPrice||0),0);
+      if (own > 0 && s.quotationVisible) estimatedRevenue += own;
+      else estimatedRevenue += details.filter(d=>d.parentLineId===s.budgetLineId && d.quotationVisible).reduce((a,d)=>a+Number(d.sellingPrice||0),0);
     });
     const unlinkedDetailRevenue = details.filter(d=>!subs.some(s=>s.budgetLineId===d.parentLineId)).reduce((a,d)=>a+Number(d.sellingPrice||0),0);
     estimatedRevenue += unlinkedDetailRevenue;
@@ -250,6 +250,42 @@
       ['estimatedQty','estimatedUnitCost','sellingPrice','actualQty','actualUnitCost','displayOrder'].forEach(k=>{if(k in data)rec[k]=Number(data[k]||0)});
       if('quotationVisible' in data) rec.quotationVisible=Boolean(data.quotationVisible);
       saveMock(); return {ok:true,data:rec};
+    }
+    if (action === 'moveBudgetLine') {
+      requireFinance(session);
+      const rec=mockState.budgetLines.find(x=>x.budgetLineId===data.budgetLineId && x.status!=='ARCHIVED'); if(!rec) throw new Error('Budget line not found.');
+      const siblings=mockState.budgetLines.filter(x=>x.eventId===rec.eventId && x.level===rec.level && (x.parentLineId||'')===(rec.parentLineId||'') && x.status!=='ARCHIVED').sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0)||a.budgetLineId.localeCompare(b.budgetLineId));
+      siblings.forEach((x,i)=>x.displayOrder=i+1);
+      const i=siblings.findIndex(x=>x.budgetLineId===rec.budgetLineId);
+      const j=String(data.direction||'').toUpperCase()==='UP'?i-1:i+1;
+      if(i>=0 && j>=0 && j<siblings.length){
+        const temp=siblings[i].displayOrder; siblings[i].displayOrder=siblings[j].displayOrder; siblings[j].displayOrder=temp;
+      }
+      saveMock(); return {ok:true,data:true};
+    }
+    if (action === 'duplicateBudgetLine') {
+      requireFinance(session);
+      const source=mockState.budgetLines.find(x=>x.budgetLineId===data.budgetLineId && x.status!=='ARCHIVED'); if(!source) throw new Error('Budget line not found.');
+      const active=()=>mockState.budgetLines.filter(x=>x.eventId===source.eventId && x.status!=='ARCHIVED');
+      const nextOrder=(level,parent)=>Math.max(0,...active().filter(x=>x.level===level&&(x.parentLineId||'')===(parent||'')).map(x=>Number(x.displayOrder||0)))+1;
+      const cloneNode=(node,newParent='',isRoot=false)=>{
+        const clone={...node};
+        clone.budgetLineId=`DE-BLN-2026-${String(mockState.budgetLines.length+1).padStart(6,'0')}`;
+        clone.parentLineId=newParent;
+        clone.displayOrder=nextOrder(node.level,newParent);
+        clone.actualQty=0; clone.actualUnitCost=0; clone.status='ACTIVE';
+        if(isRoot){
+          if(clone.level==='MAIN') clone.mainItem=`${clone.mainItem} Copy`;
+          if(clone.level==='SUB') clone.subItem=`${clone.subItem} Copy`;
+          if(clone.level==='DETAIL') clone.detailedItem=`${clone.detailedItem} Copy`;
+        }
+        mockState.budgetLines.push(clone);
+        const children=active().filter(x=>x.parentLineId===node.budgetLineId && x.budgetLineId!==clone.budgetLineId).sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0));
+        children.forEach(child=>cloneNode(child,clone.budgetLineId,false));
+        return clone;
+      };
+      const cloned=cloneNode(source,source.parentLineId||'',true);
+      saveMock(); return {ok:true,data:cloned};
     }
     if (action === 'deleteBudgetLine') {
       requireFinance(session);

@@ -4,7 +4,7 @@
   const $ = (s, root=document) => root.querySelector(s);
   const $$ = (s, root=document) => [...root.querySelectorAll(s)];
   let session = API.getSession();
-  let state = { route:'dashboard', customers:[], events:[], expenses:[], income:[], currentEvent:null, currentEventTab:'overview', budget:null };
+  let state = { route:'dashboard', customers:[], events:[], expenses:[], income:[], currentEvent:null, currentEventTab:'overview', budget:null, budgetCollapsed:new Set() };
 
   const money = v => `${CFG.CURRENCY} ${Number(v||0).toLocaleString('en-LK', {maximumFractionDigits:2})}`;
   const pct = v => `${Number(v||0).toFixed(1)}%`;
@@ -191,62 +191,151 @@
     if(session.user.role!=='FINANCE_HEAD') throw new Error('Finance Head access required.');
     state.budget=await API.request('getBudget',{eventId:state.currentEvent.eventId});
     const b=state.budget, s=b.summary;
+    const variance=Number(s.actualCost||0)-Number(s.estimatedCost||0);
+    const varianceValue=variance===0?'On budget':money(Math.abs(variance));
+    const varianceSub=variance>0?'Over budget to date':variance<0?'Under budget to date':'No cost variance';
     $('#eventTabBody').innerHTML=`
       <div class="budget-intro"><div><p class="eyebrow">INTERNAL BUDGET · VERSION ${escapeHtml(b.header.version||1)}</p><h3>Event Budget Planning</h3><p class="muted">Build the budget as Main Item → Sub Item → Detailed Item. Internal costs and margins remain Finance Head-only.</p></div><button id="addMainItemBtn" class="btn btn-primary">+ Main Item</button></div>
       <div class="metric-grid budget-metrics">
         ${card('Estimated Revenue',money(s.estimatedRevenue))}${card('Estimated Cost',money(s.estimatedCost))}${card('Expected Profit',money(s.estimatedProfit),pct(s.estimatedMargin)+' margin')}${card('Actual Cost',money(s.actualCost))}
-        ${card('Actual Revenue',money(s.actualRevenue))}${card('Actual Profit',money(s.actualProfit),pct(s.actualMargin)+' margin')}${card('Unlinked Expenses',money(s.approvedUnlinked),'approved event expenses')}${card('Variance',money(s.actualCost-s.estimatedCost),(s.actualCost-s.estimatedCost)>0?'over estimate':'vs estimate')}
+        ${card('Actual Revenue',money(s.actualRevenue))}${card('Actual Profit',money(s.actualProfit),pct(s.actualMargin)+' margin')}${card('Unlinked Expenses',money(s.approvedUnlinked),'approved event expenses')}${card('Cost Variance',varianceValue,varianceSub)}
       </div>
-      <div class="budget-guidance"><strong>Customer pricing rule:</strong> Enter the customer selling price at the <b>Sub Item</b> level for a grouped quotation, or leave the Sub Item price at 0 and price its Detailed Items individually. This prevents double-counting quotation revenue.</div>
+      <div class="budget-guidance"><strong>Customer pricing rule:</strong> Enter the customer selling price at the <b>Sub Item</b> level for a grouped quotation, or leave the Sub Item price at 0 and price its Detailed Items individually. Customer-visible pricing is highlighted below. Internal detailed costs never appear on the customer quotation.</div>
       <div id="budgetTree" class="budget-tree">${budgetTreeHtml(b.lines,s)}</div>`;
     $('#addMainItemBtn').onclick=()=>budgetLineModal('MAIN');
     bindBudgetActions();
   }
   function budgetTreeHtml(lines,summary){
-    const mains=lines.filter(x=>x.level==='MAIN').sort((a,b)=>a.displayOrder-b.displayOrder);
+    const mains=lines.filter(x=>x.level==='MAIN').sort(orderBudgetLines);
     if(!mains.length) return `<section class="panel empty big-empty"><div class="coming-icon">＋</div><h3>Start your event budget</h3><p>Add a Main Item such as Decoration, Photography, Catering or Entertainment.</p></section>`;
     return mains.map(main=>{
-      const subs=lines.filter(x=>x.level==='SUB'&&x.parentLineId===main.budgetLineId).sort((a,b)=>a.displayOrder-b.displayOrder);
+      const subs=lines.filter(x=>x.level==='SUB'&&x.parentLineId===main.budgetLineId).sort(orderBudgetLines);
       const mainEst=subCost(lines,main.budgetLineId,'estimated',summary);
       const mainAct=subCost(lines,main.budgetLineId,'actual',summary);
+      const mainRev=mainRevenue(lines,main.budgetLineId);
+      const expectedProfit=mainRev-mainEst;
+      const collapsed=isBudgetCollapsed(main.budgetLineId);
       return `<section class="budget-main panel">
-        <div class="budget-main-head"><div><p class="eyebrow">MAIN ITEM</p><h3>${escapeHtml(main.mainItem)}</h3><span>${money(mainEst)} estimated · ${money(mainAct)} actual</span></div><div class="row-actions"><button class="btn btn-xs btn-secondary" data-budget-add="SUB" data-parent="${main.budgetLineId}">+ Sub Item</button><button class="icon-action" title="Edit" data-budget-edit="${main.budgetLineId}">✎</button><button class="icon-action danger" title="Remove" data-budget-delete="${main.budgetLineId}">×</button></div></div>
-        <div class="budget-sub-list">${subs.length?subs.map(sub=>budgetSubHtml(sub,lines,summary)).join(''):'<div class="empty budget-empty">No sub items yet.</div>'}</div>
+        <div class="budget-main-head">
+          <button class="budget-collapse-btn" data-budget-collapse="${main.budgetLineId}" title="${collapsed?'Expand':'Collapse'} ${escapeHtml(main.mainItem)}">${collapsed?'▸':'▾'}</button>
+          <div class="budget-main-title"><p class="eyebrow">MAIN ITEM</p><h3>${escapeHtml(main.mainItem)}</h3>${main.description?`<small>${escapeHtml(main.description)}</small>`:''}</div>
+          <div class="budget-main-totals">
+            <span><small>Estimated cost</small><b>${money(mainEst)}</b></span>
+            <span><small>Actual cost</small><b>${money(mainAct)}</b></span>
+            <span><small>Customer value</small><b>${money(mainRev)}</b></span>
+            <span class="${expectedProfit<0?'negative':''}"><small>Expected profit</small><b>${money(expectedProfit)}</b></span>
+          </div>
+          <div class="row-actions budget-actions">
+            <button class="btn btn-xs btn-secondary" data-budget-add="SUB" data-parent="${main.budgetLineId}">+ Sub Item</button>
+            ${budgetOrderButtons(main)}
+            <button class="icon-action" title="Duplicate main item" aria-label="Duplicate main item" data-budget-duplicate="${main.budgetLineId}">⧉</button>
+            <button class="icon-action" title="Edit main item" aria-label="Edit main item" data-budget-edit="${main.budgetLineId}">✎</button>
+            <button class="icon-action danger" title="Remove main item" aria-label="Remove main item" data-budget-delete="${main.budgetLineId}">×</button>
+          </div>
+        </div>
+        <div class="budget-sub-list ${collapsed?'hidden':''}">${subs.length?subs.map(sub=>budgetSubHtml(sub,lines,summary)).join(''):'<div class="empty budget-empty">No sub items yet.</div>'}</div>
       </section>`;
     }).join('');
   }
   function budgetSubHtml(sub,lines,summary){
-    const details=lines.filter(x=>x.level==='DETAIL'&&x.parentLineId===sub.budgetLineId).sort((a,b)=>a.displayOrder-b.displayOrder);
+    const details=lines.filter(x=>x.level==='DETAIL'&&x.parentLineId===sub.budgetLineId).sort(orderBudgetLines);
     const est=details.reduce((a,d)=>a+Number(d.estimatedQty||0)*Number(d.estimatedUnitCost||0),0);
     const act=details.reduce((a,d)=>a+detailActual(d,summary),0);
+    const customerPrice=Number(sub.sellingPrice||0);
+    const groupedVisible=sub.quotationVisible&&customerPrice>0;
+    const detailVisibleCount=customerPrice<=0?details.filter(d=>d.quotationVisible&&Number(d.sellingPrice||0)>0).length:0;
+    const quoteBadge=groupedVisible
+      ? `<span class="quote-chip">Customer visible · ${money(customerPrice)}</span>`
+      : detailVisibleCount>0
+        ? `<span class="quote-chip detail-quote-chip">${detailVisibleCount} detailed price${detailVisibleCount===1?'':'s'} visible</span>`
+        : `<span class="quote-chip muted-chip">Internal only</span>`;
+    const collapsed=isBudgetCollapsed(sub.budgetLineId);
     return `<div class="budget-sub">
-      <div class="budget-sub-head"><div><p class="budget-kicker">SUB ITEM</p><h4>${escapeHtml(sub.subItem)}</h4><div class="budget-sub-meta"><span>Est. cost <b>${money(est)}</b></span><span>Actual <b>${money(act)}</b></span><span>Customer price <b>${money(sub.sellingPrice)}</b></span>${sub.quotationVisible?'<span class="quote-chip">Quotation visible</span>':'<span class="quote-chip muted-chip">Internal only</span>'}</div></div><div class="row-actions"><button class="btn btn-xs btn-ghost" data-budget-add="DETAIL" data-parent="${sub.budgetLineId}">+ Detailed Item</button><button class="icon-action" data-budget-edit="${sub.budgetLineId}">✎</button><button class="icon-action danger" data-budget-delete="${sub.budgetLineId}">×</button></div></div>
-      ${details.length?`<div class="budget-detail-table"><div class="budget-detail-row header"><span>Detailed item</span><span>Estimate</span><span>Customer price</span><span>Actual</span><span>Variance</span><span></span></div>${details.map(d=>budgetDetailHtml(d,summary)).join('')}</div>`:'<div class="empty budget-empty">No detailed items yet.</div>'}
+      <div class="budget-sub-head">
+        <button class="budget-collapse-btn sub-collapse" data-budget-collapse="${sub.budgetLineId}" title="${collapsed?'Expand':'Collapse'} ${escapeHtml(sub.subItem)}">${collapsed?'▸':'▾'}</button>
+        <div class="budget-sub-title"><p class="budget-kicker">SUB ITEM</p><h4>${escapeHtml(sub.subItem)}</h4><div class="budget-sub-meta"><span>Est. cost <b>${money(est)}</b></span><span>Actual <b>${money(act)}</b></span><span>Customer price <b>${customerPrice>0?money(customerPrice):'Not grouped'}</b></span>${quoteBadge}</div></div>
+        <div class="row-actions budget-actions">
+          <button class="btn btn-xs btn-ghost" data-budget-add="DETAIL" data-parent="${sub.budgetLineId}">+ Detailed Item</button>
+          ${budgetOrderButtons(sub)}
+          <button class="icon-action" title="Duplicate sub item" aria-label="Duplicate sub item" data-budget-duplicate="${sub.budgetLineId}">⧉</button>
+          <button class="icon-action" title="Edit sub item" aria-label="Edit sub item" data-budget-edit="${sub.budgetLineId}">✎</button>
+          <button class="icon-action danger" title="Remove sub item" aria-label="Remove sub item" data-budget-delete="${sub.budgetLineId}">×</button>
+        </div>
+      </div>
+      <div class="${collapsed?'hidden':''}">
+        ${details.length?`<div class="budget-detail-table"><div class="budget-detail-row header"><span>Detailed item</span><span>Estimate</span><span>Customer price</span><span>Actual</span><span>Budget status</span><span>Actions</span></div>${details.map(d=>budgetDetailHtml(d,summary,groupedVisible)).join('')}</div>`:'<div class="empty budget-empty">No detailed items yet.</div>'}
+        <div class="budget-subtotal-row"><span>Sub item total</span><b>${money(est)}</b><b>${customerPrice>0?money(customerPrice):money(details.filter(d=>d.quotationVisible).reduce((a,d)=>a+Number(d.sellingPrice||0),0))}</b><b>${money(act)}</b><span>${varianceLabel(act-est,true)}</span><span></span></div>
+      </div>
     </div>`;
   }
+  function orderBudgetLines(a,b){ return Number(a.displayOrder||0)-Number(b.displayOrder||0) || String(a.budgetLineId||'').localeCompare(String(b.budgetLineId||'')); }
   function detailActual(d,summary){ const linked=Number(summary.linkedByLine?.[d.budgetLineId]||0); const manual=Number(d.actualQty||0)*Number(d.actualUnitCost||0); return linked>0?linked:manual; }
   function subCost(lines,mainId,kind,summary){
     const subIds=lines.filter(x=>x.level==='SUB'&&x.parentLineId===mainId).map(x=>x.budgetLineId);
     return lines.filter(x=>x.level==='DETAIL'&&subIds.includes(x.parentLineId)).reduce((a,d)=>a+(kind==='estimated'?Number(d.estimatedQty||0)*Number(d.estimatedUnitCost||0):detailActual(d,summary)),0);
   }
-  function budgetDetailHtml(d,summary){
-    const estimated=Number(d.estimatedQty||0)*Number(d.estimatedUnitCost||0); const linked=Number(summary.linkedByLine?.[d.budgetLineId]||0); const actual=detailActual(d,summary); const variance=actual-estimated;
-    return `<div class="budget-detail-row"><span><b>${escapeHtml(d.detailedItem)}</b><small>${escapeHtml(d.estimatedQty||0)} ${escapeHtml(d.unit||'unit')} × ${money(d.estimatedUnitCost)}${linked>0?`<em>Actual from approved expenses</em>`:''}</small></span><span>${money(estimated)}</span><span>${money(d.sellingPrice)}</span><span>${money(actual)}</span><span class="${variance>0?'variance-over':variance<0?'variance-under':''}">${variance===0?'—':`${variance>0?'+':''}${money(variance)}`}</span><span class="row-actions"><button class="icon-action" data-budget-edit="${d.budgetLineId}">✎</button><button class="icon-action danger" data-budget-delete="${d.budgetLineId}">×</button></span></div>`;
+  function mainRevenue(lines,mainId){
+    const subs=lines.filter(x=>x.level==='SUB'&&x.parentLineId===mainId);
+    return subs.reduce((total,sub)=>{
+      const grouped=Number(sub.sellingPrice||0);
+      if(grouped>0 && sub.quotationVisible) return total+grouped;
+      return total+lines.filter(d=>d.level==='DETAIL'&&d.parentLineId===sub.budgetLineId&&d.quotationVisible).reduce((a,d)=>a+Number(d.sellingPrice||0),0);
+    },0);
+  }
+  function varianceLabel(variance){
+    variance=Number(variance||0);
+    if(variance===0) return '<span class="variance-neutral">On budget</span>';
+    const amount=money(Math.abs(variance));
+    return variance>0?`<span class="variance-over">Over ${amount}</span>`:`<span class="variance-under">Under ${amount}</span>`;
+  }
+  function budgetDetailHtml(d,summary,groupedPricing=false){
+    const estimated=Number(d.estimatedQty||0)*Number(d.estimatedUnitCost||0);
+    const linked=Number(summary.linkedByLine?.[d.budgetLineId]||0);
+    const actual=detailActual(d,summary);
+    const variance=actual-estimated;
+    const visible=!groupedPricing&&d.quotationVisible&&Number(d.sellingPrice||0)>0;
+    return `<div class="budget-detail-row"><span><b>${escapeHtml(d.detailedItem)}</b><small>${escapeHtml(d.estimatedQty||0)} ${escapeHtml(d.unit||'unit')} × ${money(d.estimatedUnitCost)}${linked>0?`<em>Actual from approved expenses</em>`:''}${visible?`<i class="detail-visible-badge">Customer visible</i>`:''}</small></span><span>${money(estimated)}</span><span>${Number(d.sellingPrice||0)>0?money(d.sellingPrice):'—'}</span><span>${money(actual)}</span><span>${varianceLabel(variance)}</span><span class="row-actions budget-detail-actions">${budgetOrderButtons(d)}<button class="icon-action" title="Duplicate detailed item" aria-label="Duplicate detailed item" data-budget-duplicate="${d.budgetLineId}">⧉</button><button class="icon-action" title="Edit detailed item" aria-label="Edit detailed item" data-budget-edit="${d.budgetLineId}">✎</button><button class="icon-action danger" title="Remove detailed item" aria-label="Remove detailed item" data-budget-delete="${d.budgetLineId}">×</button></span></div>`;
+  }
+  function budgetOrderButtons(line){
+    return `<button class="icon-action" title="Move up" aria-label="Move up" data-budget-move="${line.budgetLineId}" data-direction="UP">↑</button><button class="icon-action" title="Move down" aria-label="Move down" data-budget-move="${line.budgetLineId}" data-direction="DOWN">↓</button>`;
+  }
+  function isBudgetCollapsed(id){ return state.budgetCollapsed.has(`${state.currentEvent?.eventId||''}:${id}`); }
+  function toggleBudgetCollapse(id){
+    const key=`${state.currentEvent?.eventId||''}:${id}`;
+    if(state.budgetCollapsed.has(key)) state.budgetCollapsed.delete(key); else state.budgetCollapsed.add(key);
+    const tree=$('#budgetTree'); if(tree&&state.budget) tree.innerHTML=budgetTreeHtml(state.budget.lines,state.budget.summary);
+    bindBudgetActions();
   }
   function bindBudgetActions(){
     $$('[data-budget-add]').forEach(b=>b.onclick=()=>budgetLineModal(b.dataset.budgetAdd,b.dataset.parent));
     $$('[data-budget-edit]').forEach(b=>b.onclick=()=>{const line=state.budget.lines.find(x=>x.budgetLineId===b.dataset.budgetEdit);if(line)budgetLineModal(line.level,line.parentLineId,line)});
     $$('[data-budget-delete]').forEach(b=>b.onclick=()=>deleteBudgetLine(b.dataset.budgetDelete));
+    $$('[data-budget-collapse]').forEach(b=>b.onclick=()=>toggleBudgetCollapse(b.dataset.budgetCollapse));
+    $$('[data-budget-move]').forEach(b=>b.onclick=()=>moveBudgetLine(b.dataset.budgetMove,b.dataset.direction));
+    $$('[data-budget-duplicate]').forEach(b=>b.onclick=()=>duplicateBudgetLine(b.dataset.budgetDuplicate));
+  }
+  async function moveBudgetLine(id,direction){
+    try{
+      await API.request('moveBudgetLine',{budgetLineId:id,direction,eventId:state.currentEvent.eventId});
+      await renderEventBudget();
+    }catch(err){toast(err.message,'error')}
+  }
+  async function duplicateBudgetLine(id){
+    try{
+      await API.request('duplicateBudgetLine',{budgetLineId:id,eventId:state.currentEvent.eventId});
+      toast('Budget item duplicated.');
+      await renderEventBudget();
+    }catch(err){toast(err.message,'error')}
   }
   function budgetLineModal(level,parentLineId='',existing=null){
     const labels={MAIN:'Main Item',SUB:'Sub Item',DETAIL:'Detailed Item'}; const name=existing?(existing.mainItem||existing.subItem||existing.detailedItem):'';
     let extra='';
-    if(level==='SUB') extra=`<label>Customer selling price (LKR)<input type="number" min="0" step="0.01" name="sellingPrice" value="${escapeHtml(existing?.sellingPrice||0)}"></label><label class="check-label"><input type="checkbox" name="quotationVisible" ${existing?.quotationVisible===false?'':'checked'}> Show on quotation</label>`;
+    if(level==='SUB') extra=`<label>Customer selling price (LKR)<input type="number" min="0" step="0.01" name="sellingPrice" value="${escapeHtml(existing?.sellingPrice||0)}"></label><label class="check-label"><input type="checkbox" name="quotationVisible" ${existing?.quotationVisible===false?'':'checked'}> Show this Sub Item on quotation</label>`;
     if(level==='DETAIL') extra=`
       <label>Estimated quantity<input type="number" min="0" step="0.01" name="estimatedQty" value="${escapeHtml(existing?.estimatedQty||0)}"></label><label>Unit<input name="unit" value="${escapeHtml(existing?.unit||'')}" placeholder="pcs / bunch / day / lot"></label>
       <label>Estimated unit cost (LKR)<input type="number" min="0" step="0.01" name="estimatedUnitCost" value="${escapeHtml(existing?.estimatedUnitCost||0)}"></label><label>Customer selling price (optional)<input type="number" min="0" step="0.01" name="sellingPrice" value="${escapeHtml(existing?.sellingPrice||0)}"></label>
       <label>Actual quantity <small>Optional if linked expenses are used</small><input type="number" min="0" step="0.01" name="actualQty" value="${escapeHtml(existing?.actualQty||0)}"></label><label>Actual unit cost (LKR)<input type="number" min="0" step="0.01" name="actualUnitCost" value="${escapeHtml(existing?.actualUnitCost||0)}"></label>
-      <label class="check-label span-2"><input type="checkbox" name="quotationVisible" ${existing?.quotationVisible===false?'':'checked'}> Eligible to show on quotation when its Sub Item has no grouped selling price</label>`;
+      <label class="check-label span-2"><input type="checkbox" name="quotationVisible" ${existing?.quotationVisible===false?'':'checked'}> Allow this Detailed Item on quotation only when its Sub Item has no grouped selling price</label>`;
     showModal(`${existing?'Edit':'Add'} ${labels[level]}`,`<form id="budgetLineForm" class="form-grid"><label class="span-2">${labels[level]} name<input name="name" required value="${escapeHtml(name)}" placeholder="${level==='MAIN'?'Decoration':level==='SUB'?'Flowers':'White Roses'}"></label>${extra}<label class="span-2">${level==='MAIN'?'Description':'Internal notes'}<textarea name="internalNotes">${escapeHtml(existing?.internalNotes||existing?.description||'')}</textarea></label><div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">${existing?'Save Changes':'Add Item'}</button></div></form>`);
     $('#budgetLineForm').onsubmit=async e=>{
       e.preventDefault(); const fd=new FormData(e.target); const data=Object.fromEntries(fd); data.quotationVisible=fd.has('quotationVisible'); data.eventId=state.currentEvent.eventId; data.level=level; data.parentLineId=parentLineId||''; data.internalNotes=data.internalNotes||'';
