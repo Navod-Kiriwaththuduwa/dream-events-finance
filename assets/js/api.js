@@ -63,6 +63,7 @@
     s.income ||= [];
     s.budgetHeaders ||= [];
     s.budgetLines ||= [];
+    s.quotations ||= [];
     s.expenses.forEach(x => { if (!('budgetLineId' in x)) x.budgetLineId = ''; });
     return s;
   }
@@ -145,6 +146,56 @@
       linkedByLine,
       approvedUnlinked: unlinkedApproved
     };
+  }
+
+
+  function addDays(dateStr, days){
+    const d=new Date(`${dateStr||new Date().toISOString().slice(0,10)}T00:00:00`); d.setDate(d.getDate()+Number(days||0)); return d.toISOString().slice(0,10);
+  }
+  function quotationBudgetLines(eventId){
+    const lines=activeBudgetLines(eventId);
+    const mains=lines.filter(x=>x.level==='MAIN').sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0));
+    const output=[]; let order=1;
+    mains.forEach(main=>{
+      if(main.quotationVisible===false) return;
+      const subs=lines.filter(x=>x.level==='SUB'&&x.parentLineId===main.budgetLineId).sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0));
+      const visibleSubs=[];
+      subs.forEach(sub=>{
+        let amount=0;
+        if(sub.quotationVisible!==false && Number(sub.sellingPrice||0)>0) amount=Number(sub.sellingPrice||0);
+        else {
+          amount=lines.filter(x=>x.level==='DETAIL'&&x.parentLineId===sub.budgetLineId&&x.quotationVisible!==false).reduce((a,d)=>a+Number(d.sellingPrice||0),0);
+        }
+        if(amount>0) visibleSubs.push({level:'SUB',mainItem:main.mainItem,subItem:sub.subItem,description:sub.description||sub.subItem,qty:1,unitPrice:amount,amount,displayOrder:0});
+      });
+      if(visibleSubs.length){
+        output.push({level:'MAIN',mainItem:main.mainItem,subItem:'',description:main.description||'',qty:0,unitPrice:0,amount:0,displayOrder:order++});
+        visibleSubs.forEach(x=>{x.displayOrder=order++;output.push(x);});
+      }
+    });
+    return output;
+  }
+  function quotationSubtotal(lines){ return (lines||[]).filter(x=>x.level==='SUB').reduce((a,b)=>a+Number(b.amount||0),0); }
+  function calculateQuoteTotals(subtotal,type,value){
+    const sub=Number(subtotal||0), val=Math.max(0,Number(value||0));
+    let discount=0;
+    if(type==='FIXED') discount=Math.min(sub,val);
+    if(type==='PERCENT') discount=Math.min(sub,sub*val/100);
+    return {discountAmount:discount,finalTotal:Math.max(0,sub-discount)};
+  }
+  function latestEventQuotation(eventId){
+    return mockState.quotations.filter(q=>q.eventId===eventId).sort((a,b)=>Number(b.version||0)-Number(a.version||0))[0]||null;
+  }
+  function quotationDraft(eventId, revisionOf=''){
+    const event=eventById(eventId); if(!event) throw new Error('Event not found.');
+    const lines=quotationBudgetLines(eventId); const subtotal=quotationSubtotal(lines);
+    const prior=revisionOf?mockState.quotations.find(q=>q.quotationId===revisionOf):latestEventQuotation(eventId);
+    const issue=new Date().toISOString().slice(0,10);
+    return {eventId,issueDate:issue,validUntil:addDays(issue,14),subtotal,discountType:'NONE',discountValue:0,discountAmount:0,finalTotal:subtotal,terms:prior?.terms||'A booking advance is required to confirm the event. Remaining payment milestones can be agreed according to the event plan.',notes:prior?.notes||'',lines};
+  }
+  function publicQuote(q){
+    const e=eventById(q.eventId), c=e?customerById(e.customerId):null;
+    return {...q,event:e?{...e}:null,customer:c?{...c}:null,lines:(q.lines||[]).map(x=>({...x}))};
   }
 
   async function mockRequest(action, data={}) {
@@ -293,6 +344,39 @@
       if(mockState.budgetLines.some(x=>x.parentLineId===rec.budgetLineId && x.status!=='ARCHIVED')) throw new Error('Remove child items first.');
       if(mockState.expenses.some(x=>x.budgetLineId===rec.budgetLineId && x.status!=='REJECTED')) throw new Error('This item has linked expenses and cannot be removed.');
       rec.status='ARCHIVED'; saveMock(); return {ok:true,data:true};
+    }
+
+
+    if (action === 'quotationDraftFromBudget') {
+      requireFinance(session); return {ok:true,data:quotationDraft(data.eventId,data.revisionOf||'')};
+    }
+    if (action === 'listQuotations') {
+      requireFinance(session);
+      let items=mockState.quotations.slice(); if(data.eventId) items=items.filter(q=>q.eventId===data.eventId);
+      return {ok:true,data:items.sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).map(publicQuote)};
+    }
+    if (action === 'getQuotation') {
+      requireFinance(session); const q=mockState.quotations.find(x=>x.quotationId===data.quotationId); if(!q) throw new Error('Quotation not found.'); return {ok:true,data:publicQuote(q)};
+    }
+    if (action === 'createQuotation') {
+      requireFinance(session); const event=eventById(data.eventId); if(!event) throw new Error('Event not found.');
+      const draft=quotationDraft(data.eventId,data.revisionOf||''); if(!(draft.subtotal>0)) throw new Error('Add customer-visible pricing to the budget before creating a quotation.');
+      let base,version=1,prior=null;
+      if(data.revisionOf){ prior=mockState.quotations.find(x=>x.quotationId===data.revisionOf); if(!prior) throw new Error('Previous quotation not found.'); base=prior.baseNumber||String(prior.quotationNumber).replace(/-V\d+$/,''); version=Math.max(...mockState.quotations.filter(x=>x.eventId===data.eventId&&((x.baseNumber||String(x.quotationNumber).replace(/-V\d+$/,''))===base)).map(x=>Number(x.version||1)))+1; }
+      else { const n=mockState.quotations.filter(x=>Number(x.version||1)===1).length+1; base=`DE-QTN-${new Date().getFullYear()}-${String(n).padStart(4,'0')}`; }
+      const totals=calculateQuoteTotals(draft.subtotal,String(data.discountType||'NONE'),data.discountValue);
+      const q={quotationId:`${base}-V${version}`,baseNumber:base,quotationNumber:`${base}-V${version}`,eventId:data.eventId,customerId:event.customerId,version,issueDate:data.issueDate||draft.issueDate,validUntil:data.validUntil||draft.validUntil,subtotal:draft.subtotal,discountType:String(data.discountType||'NONE'),discountValue:Number(data.discountValue||0),discountAmount:totals.discountAmount,finalTotal:totals.finalTotal,status:'DRAFT',terms:data.terms||'',notes:data.notes||'',lines:draft.lines,createdBy:session.user.fullName,createdAt:new Date().toISOString()};
+      if(prior && !['ACCEPTED','CANCELLED','REJECTED'].includes(prior.status)) prior.status='SUPERSEDED';
+      mockState.quotations.push(q); event.quotedValue=q.finalTotal; if(!['CONFIRMED','COMPLETED','FINANCIALLY_CLOSED'].includes(event.status)) event.status='QUOTATION'; saveMock(); return {ok:true,data:publicQuote(q)};
+    }
+    if (action === 'updateQuotationStatus') {
+      requireFinance(session); const q=mockState.quotations.find(x=>x.quotationId===data.quotationId); if(!q) throw new Error('Quotation not found.');
+      const status=String(data.status||'').toUpperCase(); if(!['DRAFT','SENT','ACCEPTED','REJECTED','SUPERSEDED','CANCELLED'].includes(status)) throw new Error('Invalid quotation status.');
+      if(status==='ACCEPTED'){
+        mockState.quotations.filter(x=>x.eventId===q.eventId&&x.quotationId!==q.quotationId&&x.status==='ACCEPTED').forEach(x=>x.status='SUPERSEDED');
+        const e=eventById(q.eventId); if(e){e.confirmedValue=q.finalTotal;e.quotedValue=q.finalTotal;e.status='CONFIRMED';}
+      }
+      q.status=status; q.updatedAt=new Date().toISOString(); saveMock(); return {ok:true,data:publicQuote(q)};
     }
 
     if (action === 'listExpenses') return {ok:true,data:mockState.expenses.slice().reverse()};

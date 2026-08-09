@@ -1,6 +1,6 @@
 # Dream Events Finance Platform
 
-Version 1.2 foundation for Dream Events: a responsive finance and event-management web app designed for GitHub Pages with Google Apps Script + Google Sheets + Google Drive as the business backend.
+Version 1.3 foundation for Dream Events: a responsive finance and event-management web app designed for GitHub Pages with Google Apps Script + Google Sheets + Google Drive as the business backend.
 
 ## Included in this milestone
 
@@ -102,6 +102,7 @@ apps-script/
   Events.gs
   Transactions.gs
   Dashboard.gs
+  Quotations.gs
   appsscript.json
 docs/
   database-map.md
@@ -110,15 +111,13 @@ docs/
 
 ## Next build modules
 
-1. Hierarchical Main Item → Sub Item → Detailed Item budget editor
-2. Package templates
-3. Quotation versioning + branded PDF generation
-4. Invoice/payment plan/receipt generation
-5. File upload to Drive for bills and proofs
-6. Refunds/reopen/reversal workflows
-7. Inventory reservations and internal cost per use
-8. Reimbursements/payables settlement
-9. Reports and cash flow
+1. Package templates
+2. Invoice/payment plan/receipt generation
+3. File upload to Drive for bills and proofs
+4. Refunds/reopen/reversal workflows
+5. Inventory reservations and internal cost per use
+6. Reimbursements/payables settlement
+7. Reports and cash flow
 
 
 ## V1.2 budget UX refinement
@@ -133,4 +132,25 @@ This update improves the event budget workspace without changing the core three-
 - Variance wording now shows **Under budget**, **Over budget**, or **On budget** instead of signed values
 - Improved action labels/tooltips and responsive budget layout
 
-Package templates and quotation generation remain planned for the next module.
+Package templates remain planned for a later module.
+
+
+## V1.3 quotation builder
+
+This update connects the customer-facing quotation workflow directly to event budgets:
+
+- Adds a **Quotation** tab to each Finance Head event view
+- Builds customer quotations from visible Main/Sub budget structure only
+- Detailed internal budget lines never appear on the customer quotation
+- If a Sub Item has a grouped customer price, that value is used; otherwise customer-visible Detailed Item selling prices are summed into the Sub Item total
+- Supports quotation discounts as fixed amounts or percentages
+- Supports issue date, validity date, payment terms and customer notes
+- Uses sequential quotation numbers such as `DE-QTN-2026-0001-V1`
+- Supports revisions V1, V2, V3 while preserving earlier versions
+- Automatically marks replaced draft/sent versions as **Superseded**
+- Supports Draft, Sent, Accepted, Rejected, Superseded and Cancelled statuses
+- Accepting a quotation updates the event to **Confirmed** and sets its confirmed value to the accepted quotation total
+- Adds a searchable **Sales Documents** quotation register
+- Includes a premium customer quotation preview and **Print / Save PDF** browser workflow
+
+The current PDF action uses the browser print dialog so the quotation can be saved as PDF immediately. Direct PDF generation into Google Drive will be added when the production Apps Script/Drive backend is connected.

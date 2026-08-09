@@ -47,6 +47,11 @@ function routeRequest_(req) {
   if (action === 'moveBudgetLine') return moveBudgetLine_(user, data);
   if (action === 'duplicateBudgetLine') return duplicateBudgetLine_(user, data);
   if (action === 'deleteBudgetLine') return deleteBudgetLine_(user, data);
+  if (action === 'quotationDraftFromBudget') return quotationDraftFromBudget_(user, data);
+  if (action === 'listQuotations') return listQuotations_(user, data);
+  if (action === 'getQuotation') return getQuotation_(user, data);
+  if (action === 'createQuotation') return createQuotation_(user, data);
+  if (action === 'updateQuotationStatus') return updateQuotationStatus_(user, data);
   if (action === 'listExpenses') return listExpenses_(user);
   if (action === 'createExpense') return createExpense_(user, data);
   if (action === 'approveExpense') return approveExpense_(user, data);
