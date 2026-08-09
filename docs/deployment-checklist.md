@@ -1,0 +1,23 @@
+# Deployment checklist
+
+- [ ] Create empty GitHub repository: `dream-events-finance`
+- [ ] Add frontend files to default branch
+- [ ] Enable GitHub Pages from repository root
+- [ ] Create standalone Google Apps Script project
+- [ ] Add `/apps-script` source files
+- [ ] Run `setupDreamEvents()`
+- [ ] Save initial temporary Finance Head password
+- [ ] Verify generated Google Sheet and Drive folders
+- [ ] Set `DREAM_EVENTS_FRONTEND_ORIGIN` Script Property
+- [ ] Deploy Apps Script as Web App and copy `/exec` URL
+- [ ] Set `API_URL` and `DEMO_MODE:false` in `assets/js/config.js`
+- [ ] Commit configuration (API URL is okay; no credentials)
+- [ ] Login as Finance Head
+- [ ] Create test customer
+- [ ] Create test event
+- [ ] Login as Team Member
+- [ ] Submit an expense paid from Team Member Personal Funds
+- [ ] Finance Head approves expense
+- [ ] Verify payable is created
+- [ ] Verify Team Member cannot access profit or Finance Head navigation
+- [ ] Change Finance Head password before entering real financial data

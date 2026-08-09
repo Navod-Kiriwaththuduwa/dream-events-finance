@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#15130f" />
+  <title>Dream Events Finance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <section id="loginView" class="login-shell">
+    <div class="login-panel">
+      <div class="brand-mark">DE</div>
+      <p class="eyebrow">DREAM EVENTS</p>
+      <h1>Finance & Event Management</h1>
+      <p class="muted">Control budgets, customer money, expenses and event profitability from one place.</p>
+      <form id="loginForm" class="stack-lg">
+        <label>Username<input id="username" name="username" autocomplete="username" required /></label>
+        <label>Password<input id="password" name="password" type="password" autocomplete="current-password" required /></label>
+        <button class="btn btn-primary" type="submit">Sign in</button>
+      </form>
+      <p id="demoHint" class="demo-hint"></p>
+    </div>
+  </section>
+
+  <div id="appView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark small">DE</div>
+        <div><strong>Dream Events</strong><span>Finance Platform</span></div>
+      </div>
+      <nav id="mainNav" class="nav-list">
+        <button data-route="dashboard" class="nav-item active">Dashboard</button>
+        <button data-route="events" class="nav-item">Events</button>
+        <button data-route="customers" class="nav-item">Customers</button>
+        <button data-route="expenses" class="nav-item">Expenses</button>
+        <button data-route="income" class="nav-item">Income</button>
+        <button data-route="approvals" class="nav-item finance-only">Approvals <span id="approvalBadge" class="badge">0</span></button>
+        <button data-route="sales" class="nav-item finance-only">Sales Documents</button>
+        <button data-route="inventory" class="nav-item finance-only">Inventory</button>
+        <button data-route="payables" class="nav-item finance-only">Payables</button>
+        <button data-route="reports" class="nav-item finance-only">Reports</button>
+        <button data-route="admin" class="nav-item finance-only">Administration</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="userMini" class="user-mini"></div>
+        <button id="logoutBtn" class="btn btn-ghost full">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button id="menuBtn" class="menu-btn" aria-label="Open menu">☰</button>
+        <div><p class="eyebrow" id="pageEyebrow">DREAM EVENTS</p><h2 id="pageTitle">Dashboard</h2></div>
+        <div class="top-actions"><button id="quickExpenseBtn" class="btn btn-secondary">+ Expense</button><button id="quickIncomeBtn" class="btn btn-primary">+ Income</button></div>
+      </header>
+      <section id="content" class="content"></section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="modalTitle"></h3><button id="modalClose" class="icon-btn">×</button></div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <iframe id="apiBridge" name="apiBridge" class="api-bridge" title="API bridge"></iframe>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
