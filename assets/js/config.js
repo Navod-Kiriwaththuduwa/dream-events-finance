@@ -5,5 +5,6 @@ window.DREAM_EVENTS_CONFIG = {
   DEMO_MODE: true,
   APP_NAME: 'Dream Events Finance',
   SESSION_KEY: 'dream_events_session_v1',
-  CURRENCY: 'LKR'
+  CURRENCY: 'LKR',
+  COMPANY_PHONE: '+94 70 628 0480'
 };

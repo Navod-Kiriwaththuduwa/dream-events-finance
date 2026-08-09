@@ -7,6 +7,10 @@
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
   }
 
+  function roundMoney(value) {
+    return Math.round(Number(value||0));
+  }
+
   function bridgeRequest(action, payload = {}) {
     if (!config.API_URL) return Promise.reject(new Error('Apps Script API URL is not configured.'));
     const requestId = uid();
@@ -161,9 +165,9 @@
       const visibleSubs=[];
       subs.forEach(sub=>{
         let amount=0;
-        if(sub.quotationVisible!==false && Number(sub.sellingPrice||0)>0) amount=Number(sub.sellingPrice||0);
+        if(sub.quotationVisible!==false && Number(sub.sellingPrice||0)>0) amount=roundMoney(sub.sellingPrice);
         else {
-          amount=lines.filter(x=>x.level==='DETAIL'&&x.parentLineId===sub.budgetLineId&&x.quotationVisible!==false).reduce((a,d)=>a+Number(d.sellingPrice||0),0);
+          amount=roundMoney(lines.filter(x=>x.level==='DETAIL'&&x.parentLineId===sub.budgetLineId&&x.quotationVisible!==false).reduce((a,d)=>a+roundMoney(d.sellingPrice),0));
         }
         if(amount>0) visibleSubs.push({level:'SUB',mainItem:main.mainItem,subItem:sub.subItem,description:sub.description||sub.subItem,qty:1,unitPrice:amount,amount,displayOrder:0});
       });
@@ -174,13 +178,14 @@
     });
     return output;
   }
-  function quotationSubtotal(lines){ return (lines||[]).filter(x=>x.level==='SUB').reduce((a,b)=>a+Number(b.amount||0),0); }
+  function quotationSubtotal(lines){ return roundMoney((lines||[]).filter(x=>x.level==='SUB').reduce((a,b)=>a+roundMoney(b.amount),0)); }
   function calculateQuoteTotals(subtotal,type,value){
-    const sub=Number(subtotal||0), val=Math.max(0,Number(value||0));
+    const sub=roundMoney(subtotal), val=Math.max(0,roundMoney(value));
     let discount=0;
     if(type==='FIXED') discount=Math.min(sub,val);
-    if(type==='PERCENT') discount=Math.min(sub,sub*val/100);
-    return {discountAmount:discount,finalTotal:Math.max(0,sub-discount)};
+    if(type==='PERCENT') discount=Math.min(sub,roundMoney(sub*val/100));
+    discount=roundMoney(discount);
+    return {discountAmount:discount,finalTotal:roundMoney(Math.max(0,sub-discount))};
   }
   function latestEventQuotation(eventId){
     return mockState.quotations.filter(q=>q.eventId===eventId).sort((a,b)=>Number(b.version||0)-Number(a.version||0))[0]||null;
@@ -364,7 +369,7 @@
       if(data.revisionOf){ prior=mockState.quotations.find(x=>x.quotationId===data.revisionOf); if(!prior) throw new Error('Previous quotation not found.'); base=prior.baseNumber||String(prior.quotationNumber).replace(/-V\d+$/,''); version=Math.max(...mockState.quotations.filter(x=>x.eventId===data.eventId&&((x.baseNumber||String(x.quotationNumber).replace(/-V\d+$/,''))===base)).map(x=>Number(x.version||1)))+1; }
       else { const n=mockState.quotations.filter(x=>Number(x.version||1)===1).length+1; base=`DE-QTN-${new Date().getFullYear()}-${String(n).padStart(4,'0')}`; }
       const totals=calculateQuoteTotals(draft.subtotal,String(data.discountType||'NONE'),data.discountValue);
-      const q={quotationId:`${base}-V${version}`,baseNumber:base,quotationNumber:`${base}-V${version}`,eventId:data.eventId,customerId:event.customerId,version,issueDate:data.issueDate||draft.issueDate,validUntil:data.validUntil||draft.validUntil,subtotal:draft.subtotal,discountType:String(data.discountType||'NONE'),discountValue:Number(data.discountValue||0),discountAmount:totals.discountAmount,finalTotal:totals.finalTotal,status:'DRAFT',terms:data.terms||'',notes:data.notes||'',lines:draft.lines,createdBy:session.user.fullName,createdAt:new Date().toISOString()};
+      const q={quotationId:`${base}-V${version}`,baseNumber:base,quotationNumber:`${base}-V${version}`,eventId:data.eventId,customerId:event.customerId,version,issueDate:data.issueDate||draft.issueDate,validUntil:data.validUntil||draft.validUntil,subtotal:roundMoney(draft.subtotal),discountType:String(data.discountType||'NONE'),discountValue:roundMoney(data.discountValue),discountAmount:totals.discountAmount,finalTotal:totals.finalTotal,status:'DRAFT',terms:data.terms||'',notes:data.notes||'',lines:draft.lines,createdBy:session.user.fullName,createdAt:new Date().toISOString()};
       if(prior && !['ACCEPTED','CANCELLED','REJECTED'].includes(prior.status)) prior.status='SUPERSEDED';
       mockState.quotations.push(q); event.quotedValue=q.finalTotal; if(!['CONFIRMED','COMPLETED','FINANCIALLY_CLOSED'].includes(event.status)) event.status='QUOTATION'; saveMock(); return {ok:true,data:publicQuote(q)};
     }

@@ -6,7 +6,9 @@
   let session = API.getSession();
   let state = { route:'dashboard', customers:[], events:[], expenses:[], income:[], quotations:[], currentEvent:null, currentEventTab:'overview', budget:null, budgetCollapsed:new Set(), currentQuotation:null };
 
-  const money = v => `${CFG.CURRENCY} ${Number(v||0).toLocaleString('en-LK', {maximumFractionDigits:2})}`;
+  const roundMoney = v => Math.round((Number(v||0) + Number.EPSILON) * 100) / 100;
+  const money = v => { const n=roundMoney(v); return `${CFG.CURRENCY} ${n.toLocaleString('en-LK', {minimumFractionDigits:Number.isInteger(n)?0:2, maximumFractionDigits:2})}`; };
+  const quoteMoney = v => `${CFG.CURRENCY} ${Math.round(Number(v||0)).toLocaleString('en-LK')}`;
   const pct = v => `${Number(v||0).toFixed(1)}%`;
   const escapeHtml = s => String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const statusClass = s => `status ${String(s||'').toLowerCase().replaceAll('_','-').replaceAll(' ','-')}`;
@@ -412,28 +414,30 @@
       if(line.level==='MAIN'){ current={main:line,subs:[]}; groups.push(current); }
       else if(line.level==='SUB'){ if(!current){current={main:{mainItem:line.mainItem||'Event Services',description:''},subs:[]};groups.push(current);} current.subs.push(line); }
     });
-    return groups.map(g=>`<div class="quote-group"><div class="quote-group-head"><h4>${escapeHtml(g.main.mainItem)}</h4>${g.main.description?`<p>${escapeHtml(g.main.description)}</p>`:''}</div>${g.subs.map(sub=>`<div class="quote-line"><div><strong>${escapeHtml(sub.subItem||sub.description)}</strong>${sub.description&&sub.description!==sub.subItem?`<small>${escapeHtml(sub.description)}</small>`:''}</div><b>${money(sub.amount)}</b></div>`).join('')}</div>`).join('');
+    return groups.map(g=>`<div class="quote-group"><div class="quote-group-head"><h4>${escapeHtml(g.main.mainItem)}</h4>${g.main.description?`<p>${escapeHtml(g.main.description)}</p>`:''}</div>${g.subs.map(sub=>`<div class="quote-line"><div><strong>${escapeHtml(sub.subItem||sub.description)}</strong>${sub.description&&sub.description!==sub.subItem?`<small>${escapeHtml(sub.description)}</small>`:''}</div><b>${quoteMoney(sub.amount)}</b></div>`).join('')}</div>`).join('');
   }
   function quotationPreviewHtml(q, compact=false){
     const e=q.event||state.currentEvent||{};
     const c=q.customer||e.customer||{};
     return `<article class="quotation-sheet ${compact?'compact':''}" data-print-quotation>
-      <header class="quotation-brand"><div class="quotation-logo">DE</div><div><h2>Dream Events</h2><p>Making moments beautifully memorable</p></div><div class="quotation-title"><span>QUOTATION</span><strong>${escapeHtml(q.quotationNumber||'Draft')}</strong></div></header>
+      <header class="quotation-brand"><div class="quotation-logo">DE</div><div><h2>Dream Events</h2><p>Making moments beautifully memorable</p><p class="quotation-contact">${escapeHtml(CFG.COMPANY_PHONE||'+94 70 628 0480')}</p></div><div class="quotation-title"><span>QUOTATION</span><strong>${escapeHtml(q.quotationNumber||'Draft')}</strong></div></header>
       <div class="quotation-meta-grid">
         <div><span>Prepared for</span><strong>${escapeHtml(c.name||e.customerName||'Customer')}</strong><small>${escapeHtml(c.mobile||'')}${c.email?` · ${escapeHtml(c.email)}`:''}</small></div>
         <div><span>Event</span><strong>${escapeHtml(e.name||'')}</strong><small>${escapeHtml(e.type||'Event')} · ${formatPrettyDate(e.date)}</small></div>
         <div><span>Venue</span><strong>${escapeHtml(e.venue||'TBC')}</strong></div>
+        <div><span>Issue date</span><strong>${formatPrettyDate(q.issueDate)}</strong></div>
         <div><span>Valid until</span><strong>${formatPrettyDate(q.validUntil)}</strong></div>
       </div>
       <section class="quotation-items">${quotationLinesHtml(q.lines||[])||'<div class="empty">No customer-visible budget items.</div>'}</section>
       <div class="quotation-totals">
-        <div><span>Subtotal</span><strong>${money(q.subtotal)}</strong></div>
-        ${Number(q.discountAmount||0)>0?`<div><span>${escapeHtml(quoteDiscountText(q))}</span><strong>− ${money(q.discountAmount)}</strong></div>`:''}
-        <div class="grand"><span>Total</span><strong>${money(q.finalTotal)}</strong></div>
+        <div><span>Subtotal</span><strong>${quoteMoney(q.subtotal)}</strong></div>
+        ${Number(q.discountAmount||0)>0?`<div><span>${escapeHtml(quoteDiscountText(q))}</span><strong>− ${quoteMoney(q.discountAmount)}</strong></div>`:''}
+        <div class="grand"><span>Total</span><strong>${quoteMoney(q.finalTotal)}</strong></div>
       </div>
       ${q.terms?`<section class="quotation-notes"><h4>Payment & Terms</h4><p>${escapeHtml(q.terms).replaceAll('\n','<br>')}</p></section>`:''}
       ${q.notes?`<section class="quotation-notes"><h4>Notes</h4><p>${escapeHtml(q.notes).replaceAll('\n','<br>')}</p></section>`:''}
-      <footer class="quotation-footer"><span>Dream Events</span><span>Thank you for choosing us for your special event.</span></footer>
+      <section class="quotation-authorized"><div><span>Authorized by Dream Events</span><div class="authorized-line"></div><strong>Dream Events</strong></div></section>
+      <footer class="quotation-footer"><span>Dream Events · ${escapeHtml(CFG.COMPANY_PHONE||'+94 70 628 0480')}</span><span>Thank you for choosing us for your special event.</span></footer>
     </article>`;
   }
   async function renderEventQuotation(){
@@ -448,7 +452,7 @@
     bindQuotationButtons();
   }
   function quotationCardHtml(q){
-    return `<article class="panel quotation-card"><div><p class="eyebrow">${escapeHtml(q.quotationNumber)}</p><h3>${money(q.finalTotal)}</h3><p>Issued ${formatPrettyDate(q.issueDate)} · Valid until ${formatPrettyDate(q.validUntil)}</p></div><div class="quotation-card-actions"><span class="${statusClass(q.status)}">${escapeHtml(displayStatus(q.status))}</span><button class="btn btn-sm btn-secondary" data-quote-view="${escapeHtml(q.quotationId)}">Preview</button>${!['CANCELLED','REJECTED'].includes(q.status)?`<button class="btn btn-sm btn-ghost" data-quote-revise="${escapeHtml(q.quotationId)}">New Revision</button>`:''}</div></article>`;
+    return `<article class="panel quotation-card"><div><p class="eyebrow">${escapeHtml(q.quotationNumber)}</p><h3>${quoteMoney(q.finalTotal)}</h3><p>Issued ${formatPrettyDate(q.issueDate)} · Valid until ${formatPrettyDate(q.validUntil)}</p></div><div class="quotation-card-actions"><span class="${statusClass(q.status)}">${escapeHtml(displayStatus(q.status))}</span><button class="btn btn-sm btn-secondary" data-quote-view="${escapeHtml(q.quotationId)}">Preview</button>${!['CANCELLED','REJECTED'].includes(q.status)?`<button class="btn btn-sm btn-ghost" data-quote-revise="${escapeHtml(q.quotationId)}">New Revision</button>`:''}</div></article>`;
   }
   async function quotationBuilderModal(revisionOf=''){
     const eventId=state.currentEvent?.eventId;
@@ -457,7 +461,7 @@
     try{draft=await API.request('quotationDraftFromBudget',{eventId,revisionOf});}catch(err){toast(err.message,'error');return;}
     const issue=draft.issueDate||today();
     showModal(revisionOf?'Create Quotation Revision':'Create Quotation',`<form id="quotationForm" class="form-grid quotation-form">
-      <div class="span-2 quote-builder-summary"><div><span>Event</span><strong>${escapeHtml(state.currentEvent.name)}</strong></div><div><span>Customer-visible subtotal</span><strong>${money(draft.subtotal)}</strong></div></div>
+      <div class="span-2 quote-builder-summary"><div><span>Event</span><strong>${escapeHtml(state.currentEvent.name)}</strong></div><div><span>Customer-visible subtotal</span><strong>${quoteMoney(draft.subtotal)}</strong></div></div>
       <label>Issue date<input type="date" name="issueDate" value="${escapeHtml(issue)}" required></label>
       <label>Valid until<input type="date" name="validUntil" value="${escapeHtml(draft.validUntil)}" required></label>
       <label>Discount type<select id="quoteDiscountType" name="discountType"><option value="NONE">No discount</option><option value="FIXED">Fixed amount</option><option value="PERCENT">Percentage</option></select></label>
@@ -465,10 +469,10 @@
       <label class="span-2">Payment & terms<textarea name="terms" rows="4">${escapeHtml(draft.terms||'')}</textarea></label>
       <label class="span-2">Customer notes<textarea name="notes" rows="3">${escapeHtml(draft.notes||'')}</textarea></label>
       <div class="span-2 quote-builder-lines"><h4>Customer quotation items</h4>${quotationLinesHtml(draft.lines||[])||'<div class="empty">No visible budget items.</div>'}</div>
-      <div class="span-2 quote-builder-total"><span>Quotation total</span><strong id="quoteBuilderTotal">${money(draft.subtotal)}</strong></div>
+      <div class="span-2 quote-builder-total"><span>Quotation total</span><strong id="quoteBuilderTotal">${quoteMoney(draft.subtotal)}</strong></div>
       <div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">${revisionOf?'Create Revision':'Create Quotation'}</button></div>
     </form>`);
-    const update=()=>{const type=$('#quoteDiscountType').value,val=Number($('#quoteDiscountValue').value||0),sub=Number(draft.subtotal||0);let disc=type==='FIXED'?Math.min(sub,val):type==='PERCENT'?Math.min(sub,sub*val/100):0;$('#quoteBuilderTotal').textContent=money(Math.max(0,sub-disc));};
+    const update=()=>{const type=$('#quoteDiscountType').value,val=Number($('#quoteDiscountValue').value||0),sub=Number(draft.subtotal||0);let disc=type==='FIXED'?Math.min(sub,val):type==='PERCENT'?Math.min(sub,sub*val/100):0;$('#quoteBuilderTotal').textContent=quoteMoney(Math.max(0,sub-disc));};
     $('#quoteDiscountType').onchange=update;$('#quoteDiscountValue').oninput=update;
     $('#quotationForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));data.eventId=eventId;data.revisionOf=revisionOf;try{const q=await API.request('createQuotation',data);closeModal();toast(`${q.quotationNumber} created.`);await openEvent(eventId,'quotation');showQuotationPreview(q.quotationId);}catch(err){toast(err.message,'error')}};
     bindModalCloseButtons();
@@ -487,7 +491,8 @@
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(q.quotationNumber)}</title><style>${quotationPrintCss()}</style></head><body>${quotationPreviewHtml(q)}</body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),250);
   }
-  function quotationPrintCss(){return `*{box-sizing:border-box}body{margin:0;background:#fff;color:#171511;font-family:Arial,sans-serif}.quotation-sheet{width:190mm;min-height:270mm;margin:0 auto;padding:18mm 16mm}.quotation-brand{display:grid;grid-template-columns:52px 1fr auto;gap:14px;align-items:center;border-bottom:2px solid #b88a34;padding-bottom:18px}.quotation-logo{width:46px;height:46px;border:1px solid #b88a34;border-radius:50%;display:grid;place-items:center;font-family:Georgia,serif;font-weight:bold;color:#9a6d19}.quotation-brand h2{font-family:Georgia,serif;margin:0;font-size:24px}.quotation-brand p{margin:4px 0 0;color:#6f675a;font-size:11px}.quotation-title{text-align:right}.quotation-title span{display:block;font-size:10px;letter-spacing:2px;color:#9a6d19}.quotation-title strong{font-size:13px}.quotation-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 28px;padding:22px 0}.quotation-meta-grid div{border-bottom:1px solid #e7dfd1;padding-bottom:8px}.quotation-meta-grid span,.quotation-meta-grid small{display:block;color:#756e63;font-size:10px}.quotation-meta-grid strong{display:block;margin:4px 0;font-size:12px}.quote-group{margin:8px 0 18px}.quote-group-head{background:#f6f1e8;padding:10px 12px}.quote-group-head h4{margin:0;font-family:Georgia,serif}.quote-group-head p{margin:3px 0 0;font-size:10px;color:#6f675a}.quote-line{display:flex;justify-content:space-between;gap:20px;padding:11px 12px;border-bottom:1px solid #eee8de;font-size:11px}.quote-line small{display:block;color:#756e63;margin-top:3px}.quotation-totals{width:46%;margin:24px 0 24px auto}.quotation-totals div{display:flex;justify-content:space-between;padding:7px 0;font-size:11px}.quotation-totals .grand{border-top:2px solid #171511;font-size:15px;padding-top:11px}.quotation-notes{margin-top:18px}.quotation-notes h4{font-family:Georgia,serif;margin:0 0 6px}.quotation-notes p{font-size:10px;line-height:1.55;color:#504a42}.quotation-footer{margin-top:30px;padding-top:12px;border-top:1px solid #ddd4c4;display:flex;justify-content:space-between;font-size:9px;color:#756e63}@page{size:A4;margin:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.quotation-sheet{margin:0}}`;}
+  function quotationPrintCss(){return `*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#171511;font-family:Arial,sans-serif}.quotation-sheet{width:100%;max-width:190mm;min-height:0;margin:0 auto;padding:14mm 14mm 16mm}.quotation-brand{display:grid;grid-template-columns:52px 1fr auto;gap:14px;align-items:center;border-bottom:2px solid #b88a34;padding-bottom:16px;break-inside:avoid;page-break-inside:avoid}.quotation-logo{width:46px;height:46px;border:1px solid #b88a34;border-radius:50%;display:grid;place-items:center;font-family:Georgia,serif;font-weight:bold;color:#9a6d19}.quotation-brand h2{font-family:Georgia,serif;margin:0;font-size:24px}.quotation-brand p{margin:4px 0 0;color:#6f675a;font-size:10px}.quotation-brand .quotation-contact{color:#171511;font-weight:700;letter-spacing:.02em}.quotation-title{text-align:right}.quotation-title span{display:block;font-size:10px;letter-spacing:2px;color:#9a6d19}.quotation-title strong{font-size:13px}.quotation-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 28px;padding:20px 0 18px;break-inside:avoid;page-break-inside:avoid}.quotation-meta-grid div{border-bottom:1px solid #e7dfd1;padding-bottom:8px}.quotation-meta-grid span,.quotation-meta-grid small{display:block;color:#756e63;font-size:10px}.quotation-meta-grid strong{display:block;margin:4px 0;font-size:12px}.quotation-items{margin-top:4px}.quote-group{margin:14px 0 24px}.quote-group-head{background:#f6f1e8;padding:12px 14px;border-radius:3px;break-after:avoid;page-break-after:avoid}.quote-group-head h4{margin:0;font-family:Georgia,serif;font-size:15px}.quote-group-head p{margin:4px 0 0;font-size:10px;line-height:1.45;color:#6f675a}.quote-line{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:14px 14px;border-bottom:1px solid #eee8de;font-size:11px;line-height:1.45;break-inside:avoid;page-break-inside:avoid}.quote-line>div{max-width:72%}.quote-line b{white-space:nowrap}.quote-line small{display:block;color:#756e63;margin-top:4px;line-height:1.4}.quotation-totals{width:48%;margin:26px 0 26px auto;break-inside:avoid;page-break-inside:avoid}.quotation-totals div{display:flex;justify-content:space-between;gap:18px;padding:8px 0;font-size:11px}.quotation-totals strong{white-space:nowrap}.quotation-totals .grand{border-top:2px solid #171511;font-size:15px;padding-top:12px}.quotation-notes{margin-top:20px;break-inside:avoid;page-break-inside:avoid}.quotation-notes h4{font-family:Georgia,serif;margin:0 0 7px}.quotation-notes p{font-size:10px;line-height:1.65;color:#504a42;margin:0}.quotation-authorized{margin:30px 0 16px;display:flex;justify-content:flex-end;break-inside:avoid;page-break-inside:avoid}.quotation-authorized>div{width:62mm;text-align:left}.quotation-authorized span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#756e63}.authorized-line{height:22px;border-bottom:1px solid #8f877c;margin-bottom:6px}.quotation-authorized strong{font-family:Georgia,serif;font-size:11px}.quotation-footer{margin-top:22px;padding-top:12px;border-top:1px solid #ddd4c4;display:flex;justify-content:space-between;gap:15px;font-size:9px;line-height:1.4;color:#756e63;break-inside:avoid;page-break-inside:avoid}@page{size:A4;margin:12mm 10mm}@media print{html,body{width:auto;height:auto}.quotation-sheet{width:auto;max-width:none;margin:0;padding:0;box-shadow:none;border:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.quotation-brand,.quotation-meta-grid,.quote-line,.quotation-totals,.quotation-notes,.quotation-authorized,.quotation-footer{break-inside:avoid;page-break-inside:avoid}.quote-group-head{break-after:avoid;page-break-after:avoid}.quote-group{break-inside:auto;page-break-inside:auto}}`;}
+
   function bindQuotationButtons(){
     $$('[data-quote-view]').forEach(b=>b.onclick=()=>showQuotationPreview(b.dataset.quoteView));
     $$('[data-quote-revise]').forEach(b=>b.onclick=()=>quotationBuilderModal(b.dataset.quoteRevise));
@@ -496,7 +501,7 @@
     if(session.user.role!=='FINANCE_HEAD') return navigate('dashboard');
     const qs=state.quotations||[];
     $('#content').innerHTML=`<div class="toolbar"><input id="quoteSearch" class="search" placeholder="Search quotation, event, customer or status"></div><section class="panel table-panel"><table><thead><tr><th>Quotation</th><th>Event</th><th>Customer</th><th>Issue</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody id="quoteRows"></tbody></table></section>`;
-    const draw=items=>{$('#quoteRows').innerHTML=items.length?items.map(q=>`<tr><td><b>${escapeHtml(q.quotationNumber)}</b><small>Version ${escapeHtml(q.version)}</small></td><td>${escapeHtml(q.event?.name||q.eventId)}</td><td>${escapeHtml(q.customer?.name||'—')}</td><td>${formatPrettyDate(q.issueDate)}</td><td class="money">${money(q.finalTotal)}</td><td><span class="${statusClass(q.status)}">${escapeHtml(displayStatus(q.status))}</span></td><td><button class="btn btn-xs btn-secondary" data-quote-view="${escapeHtml(q.quotationId)}">Preview</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">No quotations found.</td></tr>';bindQuotationButtons();};
+    const draw=items=>{$('#quoteRows').innerHTML=items.length?items.map(q=>`<tr><td><b>${escapeHtml(q.quotationNumber)}</b><small>Version ${escapeHtml(q.version)}</small></td><td>${escapeHtml(q.event?.name||q.eventId)}</td><td>${escapeHtml(q.customer?.name||'—')}</td><td>${formatPrettyDate(q.issueDate)}</td><td class="money">${quoteMoney(q.finalTotal)}</td><td><span class="${statusClass(q.status)}">${escapeHtml(displayStatus(q.status))}</span></td><td><button class="btn btn-xs btn-secondary" data-quote-view="${escapeHtml(q.quotationId)}">Preview</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">No quotations found.</td></tr>';bindQuotationButtons();};
     draw(qs);$('#quoteSearch').oninput=e=>{const q=e.target.value.toLowerCase();draw(qs.filter(x=>JSON.stringify(x).toLowerCase().includes(q)))};
   }
 

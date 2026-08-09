@@ -2,22 +2,23 @@ function quotationVisible_(v){ return String(v).toLowerCase()!=='false'; }
 function quotationSetting_(key, fallback){ const r=getRows_('00_SETTINGS').find(x=>x.Key===key); return r&&String(r.Value)!==''?r.Value:fallback; }
 function quotationAddDays_(dateStr,days){ const d=new Date(String(dateStr||formatDateOnly_(new Date()))+'T00:00:00');d.setDate(d.getDate()+Number(days||0));return Utilities.formatDate(d,'Asia/Colombo','yyyy-MM-dd'); }
 function quotationBase_(number){ return String(number||'').replace(/-V\d+$/,''); }
-function quotationTotals_(subtotal,type,value){ const sub=Number(subtotal||0),val=Math.max(0,Number(value||0));let discount=0;if(type==='FIXED')discount=Math.min(sub,val);if(type==='PERCENT')discount=Math.min(sub,sub*val/100);return {discountAmount:discount,finalTotal:Math.max(0,sub-discount)}; }
+function quotationRound_(value){ return Math.round(Number(value||0)); }
+function quotationTotals_(subtotal,type,value){ const sub=quotationRound_(subtotal),val=Math.max(0,quotationRound_(value));let discount=0;if(type==='FIXED')discount=Math.min(sub,val);if(type==='PERCENT')discount=Math.min(sub,quotationRound_(sub*val/100));discount=quotationRound_(discount);return {discountAmount:discount,finalTotal:quotationRound_(Math.max(0,sub-discount))}; }
 function quotationBudgetLines_(eventId){
   const rows=budgetLinesForEvent_(eventId),out=[];let order=1;
   rows.filter(x=>x.Level==='MAIN').sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0)).forEach(main=>{
     const visible=[];
     rows.filter(x=>x.Level==='SUB'&&x.Parent_Line_ID===main.Budget_Line_ID).sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0)).forEach(sub=>{
       let amount=0;
-      if(quotationVisible_(sub.Quotation_Visible)&&Number(sub.Selling_Price||0)>0)amount=Number(sub.Selling_Price||0);
-      else amount=rows.filter(x=>x.Level==='DETAIL'&&x.Parent_Line_ID===sub.Budget_Line_ID&&quotationVisible_(x.Quotation_Visible)).reduce((a,d)=>a+Number(d.Selling_Price||0),0);
+      if(quotationVisible_(sub.Quotation_Visible)&&Number(sub.Selling_Price||0)>0)amount=quotationRound_(sub.Selling_Price);
+      else amount=quotationRound_(rows.filter(x=>x.Level==='DETAIL'&&x.Parent_Line_ID===sub.Budget_Line_ID&&quotationVisible_(x.Quotation_Visible)).reduce((a,d)=>a+quotationRound_(d.Selling_Price),0));
       if(amount>0)visible.push({Level:'SUB',Main_Item:main.Main_Item,Sub_Item:sub.Sub_Item,Description:sub.Description||sub.Sub_Item,Qty:1,Unit_Price:amount,Amount:amount,Display_Order:0});
     });
     if(visible.length){out.push({Level:'MAIN',Main_Item:main.Main_Item,Sub_Item:'',Description:main.Description||'',Qty:0,Unit_Price:0,Amount:0,Display_Order:order++});visible.forEach(x=>{x.Display_Order=order++;out.push(x);});}
   });
   return out;
 }
-function quotationSubtotal_(lines){return (lines||[]).filter(x=>x.Level==='SUB').reduce((a,b)=>a+Number(b.Amount||0),0);}
+function quotationSubtotal_(lines){return quotationRound_((lines||[]).filter(x=>x.Level==='SUB').reduce((a,b)=>a+quotationRound_(b.Amount),0));}
 function quotationDraftFromBudget_(user,data){
   requireFinance_(user);requireFields_(data,['eventId']);const e=findOne_('03_EVENTS','Event_ID',data.eventId);if(!e||e.Status==='ARCHIVED')throw new Error('Event not found.');
   const lines=quotationBudgetLines_(data.eventId),subtotal=quotationSubtotal_(lines),issue=formatDateOnly_(new Date()),days=Number(quotationSetting_('QUOTATION_VALIDITY_DAYS',14)||14);
@@ -40,7 +41,7 @@ function createQuotation_(user,data){
   if(data.revisionOf){prior=findOne_('09_QUOTATIONS','Quotation_ID',data.revisionOf);if(!prior)throw new Error('Previous quotation not found.');base=quotationBase_(prior.Quotation_Number);const versions=getRows_('09_QUOTATIONS').filter(x=>x.Event_ID===data.eventId&&quotationBase_(x.Quotation_Number)===base).map(x=>Number(x.Version||1));version=(versions.length?Math.max.apply(null,versions):1)+1;}
   else base=nextNumber_('QUOTE','DE-QTN-',4);
   const number=base+'-V'+version,id=number,totals=quotationTotals_(draft.subtotal,String(data.discountType||'NONE'),data.discountValue);
-  const rec={Quotation_ID:id,Quotation_Number:number,Event_ID:data.eventId,Customer_ID:event.Customer_ID,Version:version,Issue_Date:data.issueDate,Valid_Until:data.validUntil,Subtotal:draft.subtotal,Discount_Type:String(data.discountType||'NONE'),Discount_Value:Number(data.discountValue||0),Discount_Amount:totals.discountAmount,Final_Total:totals.finalTotal,Status:'DRAFT',Terms:data.terms||'',Notes:data.notes||'',PDF_File_ID:'',PDF_URL:'',Created_By:user.User_ID,Created_At:nowIso_()};
+  const rec={Quotation_ID:id,Quotation_Number:number,Event_ID:data.eventId,Customer_ID:event.Customer_ID,Version:version,Issue_Date:data.issueDate,Valid_Until:data.validUntil,Subtotal:quotationRound_(draft.subtotal),Discount_Type:String(data.discountType||'NONE'),Discount_Value:quotationRound_(data.discountValue),Discount_Amount:totals.discountAmount,Final_Total:totals.finalTotal,Status:'DRAFT',Terms:data.terms||'',Notes:data.notes||'',PDF_File_ID:'',PDF_URL:'',Created_By:user.User_ID,Created_At:nowIso_()};
   appendObject_('09_QUOTATIONS',rec);draft.lines.forEach((line,i)=>appendObject_('10_QUOTATION_LINES',{Quotation_Line_ID:'QTL-'+Utilities.getUuid(),Quotation_ID:id,Level:line.level,Main_Item:line.mainItem,Sub_Item:line.subItem,Description:line.description,Qty:line.qty,Unit_Price:line.unitPrice,Amount:line.amount,Display_Order:i+1}));
   if(prior&&!['ACCEPTED','CANCELLED','REJECTED'].includes(prior.Status))updateObjectRow_('09_QUOTATIONS',prior._row,{Status:'SUPERSEDED'});
   const patch={Quoted_Value:totals.finalTotal,Updated_By:user.User_ID,Updated_At:nowIso_()};if(!['CONFIRMED','COMPLETED','FINANCIALLY_CLOSED'].includes(event.Status))patch.Status='QUOTATION';updateObjectRow_('03_EVENTS',event._row,patch);
