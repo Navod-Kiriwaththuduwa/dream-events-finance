@@ -1,8 +1,10 @@
 window.DREAM_EVENTS_CONFIG = {
-  // Paste the deployed Apps Script /exec URL here after backend deployment.
-  API_URL: '',
-  // DEMO_MODE lets the UI run before the Apps Script backend is connected.
-  DEMO_MODE: true,
+  // Production Google Apps Script backend
+  API_URL: 'https://script.google.com/macros/s/AKfycbxY6RuQJhoYR9t-yO7Vo3WNDx6ppvZBlOtvNf29vMfsRL1jZ5V44jzS29gIg-hECkzH/exec',
+
+  // Real Google Sheets database
+  DEMO_MODE: false,
+
   APP_NAME: 'Dream Events Finance',
   SESSION_KEY: 'dream_events_session_v1',
   CURRENCY: 'LKR',
