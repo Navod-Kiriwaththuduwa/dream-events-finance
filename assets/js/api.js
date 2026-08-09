@@ -68,6 +68,10 @@
     s.budgetHeaders ||= [];
     s.budgetLines ||= [];
     s.quotations ||= [];
+    s.invoices ||= [];
+    s.paymentPlans ||= [];
+    s.payments ||= [];
+    s.receipts ||= [];
     s.expenses.forEach(x => { if (!('budgetLineId' in x)) x.budgetLineId = ''; });
     return s;
   }
@@ -202,6 +206,41 @@
     return {...q,event:e?{...e}:null,customer:c?{...c}:null,lines:(q.lines||[]).map(x=>({...x}))};
   }
 
+
+  function invoiceById(id){ return mockState.invoices.find(x=>x.invoiceId===id); }
+  function invoicePayments(invoiceId){ return mockState.payments.filter(x=>x.invoiceId===invoiceId && x.status==='APPROVED'); }
+  function invoicePlanRows(invoiceId){ return mockState.paymentPlans.filter(x=>x.invoiceId===invoiceId && x.status!=='SUPERSEDED').sort((a,b)=>Number(a.sequence||0)-Number(b.sequence||0)); }
+  function invoiceStatus(invoice){
+    const outstanding=Math.max(0,roundMoney(Number(invoice.finalTotal||0)-invoicePayments(invoice.invoiceId).reduce((a,b)=>a+Number(b.amount||0),0)));
+    if(outstanding<=0) return 'PAID';
+    if(invoice.dueDate && invoice.dueDate < new Date().toISOString().slice(0,10)) return 'OVERDUE';
+    if(outstanding<Number(invoice.finalTotal||0)) return 'PARTIALLY_PAID';
+    return invoice.status==='DRAFT'?'DRAFT':'ISSUED';
+  }
+  function refreshInvoice(invoice){
+    const paid=roundMoney(invoicePayments(invoice.invoiceId).reduce((a,b)=>a+Number(b.amount||0),0));
+    invoice.amountPaid=paid;
+    invoice.outstanding=roundMoney(Math.max(0,Number(invoice.finalTotal||0)-paid));
+    invoice.status=invoiceStatus(invoice);
+    return invoice;
+  }
+  function publicInvoice(inv){
+    refreshInvoice(inv);
+    const e=eventById(inv.eventId), c=e?customerById(e.customerId):null;
+    return {...inv,event:e?{...e}:null,customer:c?{...c}:null,lines:(inv.lines||[]).map(x=>({...x}))};
+  }
+  function publicReceipt(r){
+    const e=eventById(r.eventId), c=e?customerById(e.customerId):null, inv=invoiceById(r.invoiceId);
+    return {...r,event:e?{...e}:null,customer:c?{...c}:null,invoice:inv?publicInvoice(inv):null};
+  }
+  function eventReceivable(eventId){
+    const invoices=mockState.invoices.filter(x=>x.eventId===eventId && x.status!=='CANCELLED');
+    if(invoices.length) return roundMoney(invoices.reduce((a,i)=>a+refreshInvoice(i).outstanding,0));
+    const e=eventById(eventId); if(!e) return 0;
+    const approvedIncome=mockState.income.filter(x=>x.eventId===eventId && x.status==='APPROVED').reduce((a,b)=>a+Number(b.amount||0),0);
+    return roundMoney(Math.max(0,Number(e.confirmedValue||0)-approvedIncome));
+  }
+
   async function mockRequest(action, data={}) {
     if (!mockState) initMock();
     await new Promise(r => setTimeout(r, 90));
@@ -225,7 +264,7 @@
       return {ok:true,data:{
         activeEvents:mockState.events.filter(x=>!['COMPLETED','CANCELLED','FINANCIALLY_CLOSED'].includes(x.status)).length,
         revenue, expenses:approvedExpense, eventProfit:finance?revenue-approvedExpense:null,
-        receivables:finance?Math.max(0,mockState.events.reduce((a,b)=>a+Number(b.confirmedValue||0),0)-revenue):null,
+        receivables:finance?mockState.events.reduce((a,e)=>a+eventReceivable(e.eventId),0):null,
         supplierPayables:0,
         ownerPayable:finance?mockState.expenses.filter(x=>x.status==='APPROVED'&&x.paidFrom==='OWNER_PERSONAL').reduce((a,b)=>a+Number(b.amount||0),0):null,
         teamPayable:finance?mockState.expenses.filter(x=>x.status==='APPROVED'&&x.paidFrom==='TEAM_MEMBER_PERSONAL').reduce((a,b)=>a+Number(b.amount||0),0):null,
@@ -247,7 +286,7 @@
       const c=customerById(e.customerId);
       const expenses=mockState.expenses.filter(x=>x.eventId===e.eventId && x.status==='APPROVED').reduce((a,b)=>a+Number(b.amount||0),0);
       const income=mockState.income.filter(x=>x.eventId===e.eventId && x.status==='APPROVED').reduce((a,b)=>a+Number(b.amount||0),0);
-      return {ok:true,data:{...e,customer:c?{customerId:c.customerId,name:c.name,mobile:c.mobile,whatsapp:c.whatsapp,email:c.email}:null,approvedExpenses:expenses,approvedIncome:income,confirmedValue:finance?e.confirmedValue:null}};
+      return {ok:true,data:{...e,customer:c?{customerId:c.customerId,name:c.name,mobile:c.mobile,whatsapp:c.whatsapp,email:c.email}:null,approvedExpenses:expenses,approvedIncome:income,customerOutstanding:finance?eventReceivable(e.eventId):null,confirmedValue:finance?e.confirmedValue:null}};
     }
     if (action === 'createEvent') {
       requireFinance(session);
@@ -381,6 +420,62 @@
         const e=eventById(q.eventId); if(e){e.confirmedValue=q.finalTotal;e.quotedValue=q.finalTotal;e.status='CONFIRMED';}
       }
       q.status=status; q.updatedAt=new Date().toISOString(); saveMock(); return {ok:true,data:publicQuote(q)};
+    }
+
+
+    if (action === 'listInvoices') {
+      requireFinance(session); let items=mockState.invoices.slice();
+      if(data.eventId) items=items.filter(x=>x.eventId===data.eventId);
+      return {ok:true,data:items.sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).map(publicInvoice)};
+    }
+    if (action === 'getInvoice') {
+      requireFinance(session); const inv=invoiceById(data.invoiceId); if(!inv) throw new Error('Invoice not found.'); return {ok:true,data:publicInvoice(inv)};
+    }
+    if (action === 'createInvoiceFromQuotation') {
+      requireFinance(session); const q=mockState.quotations.find(x=>x.quotationId===data.quotationId); if(!q) throw new Error('Quotation not found.');
+      if(q.status!=='ACCEPTED') throw new Error('Only an accepted quotation can be invoiced.');
+      const existing=mockState.invoices.find(x=>x.quotationId===q.quotationId && x.status!=='CANCELLED'); if(existing) throw new Error(`Invoice ${existing.invoiceNumber} already exists for this quotation.`);
+      const year=new Date().getFullYear(), n=mockState.invoices.length+1, number=`DE-INV-${year}-${String(n).padStart(4,'0')}`;
+      const event=eventById(q.eventId); const invoiceDate=data.invoiceDate||new Date().toISOString().slice(0,10); const dueDate=data.dueDate||event?.date||invoiceDate;
+      const inv={invoiceId:number,invoiceNumber:number,eventId:q.eventId,customerId:q.customerId,quotationId:q.quotationId,invoiceDate,dueDate,subtotal:roundMoney(q.subtotal),discount:roundMoney(q.discountAmount),finalTotal:roundMoney(q.finalTotal),amountPaid:0,outstanding:roundMoney(q.finalTotal),status:'ISSUED',lines:(q.lines||[]).map(x=>({...x})),createdBy:session.user.fullName,createdAt:new Date().toISOString()};
+      mockState.invoices.push(inv); saveMock(); return {ok:true,data:publicInvoice(inv)};
+    }
+    if (action === 'listPaymentPlans') {
+      requireFinance(session); let rows=mockState.paymentPlans.slice(); if(data.invoiceId) rows=rows.filter(x=>x.invoiceId===data.invoiceId); if(data.eventId) rows=rows.filter(x=>x.eventId===data.eventId);
+      return {ok:true,data:rows.filter(x=>x.status!=='SUPERSEDED').sort((a,b)=>Number(a.sequence||0)-Number(b.sequence||0))};
+    }
+    if (action === 'createPaymentPlan') {
+      requireFinance(session); const inv=invoiceById(data.invoiceId); if(!inv) throw new Error('Invoice not found.');
+      if(invoicePayments(inv.invoiceId).length) throw new Error('Create or change the payment plan before recording payments.');
+      const rows=Array.isArray(data.milestones)?data.milestones:[]; if(!rows.length) throw new Error('Add at least one payment milestone.');
+      const total=roundMoney(rows.reduce((a,r)=>a+Number(r.amount||0),0)); if(Math.abs(total-Number(inv.finalTotal||0))>0.01) throw new Error(`Payment plan must total ${roundMoney(inv.finalTotal)}.`);
+      mockState.paymentPlans.filter(x=>x.invoiceId===inv.invoiceId && x.status!=='SUPERSEDED').forEach(x=>x.status='SUPERSEDED');
+      const planType=String(data.planType||'CUSTOM'); const created=rows.map((r,i)=>({paymentPlanId:`DE-PPL-${new Date().getFullYear()}-${String(mockState.paymentPlans.length+i+1).padStart(6,'0')}`,invoiceId:inv.invoiceId,eventId:inv.eventId,sequence:i+1,milestoneName:String(r.name||`Milestone ${i+1}`),percentage:Number(inv.finalTotal)?Number(r.amount||0)/Number(inv.finalTotal)*100:0,expectedAmount:roundMoney(r.amount),dueDate:r.dueDate||inv.dueDate,receivedAmount:0,balance:roundMoney(r.amount),status:'PENDING',planType}));
+      mockState.paymentPlans.push(...created); const e=eventById(inv.eventId); if(e)e.paymentPlanType=planType; saveMock(); return {ok:true,data:created};
+    }
+    if (action === 'listPayments') {
+      requireFinance(session); let rows=mockState.payments.slice(); if(data.invoiceId) rows=rows.filter(x=>x.invoiceId===data.invoiceId); if(data.eventId) rows=rows.filter(x=>x.eventId===data.eventId);
+      return {ok:true,data:rows.slice().sort((a,b)=>String(b.paymentDate||'').localeCompare(String(a.paymentDate||'')))};
+    }
+    if (action === 'recordPayment') {
+      requireFinance(session); const inv=invoiceById(data.invoiceId); if(!inv) throw new Error('Invoice not found.'); refreshInvoice(inv);
+      const amount=Number(data.amount||0); if(!(amount>0)) throw new Error('Payment amount must be greater than zero.'); if(amount-inv.outstanding>0.01) throw new Error('Payment cannot exceed the invoice outstanding balance.');
+      const activePlan=invoicePlanRows(inv.invoiceId); if(activePlan.length && !data.paymentPlanId) throw new Error('Select the payment milestone for this payment.');
+      let milestone=null; if(data.paymentPlanId){ milestone=mockState.paymentPlans.find(x=>x.paymentPlanId===data.paymentPlanId && x.invoiceId===inv.invoiceId && x.status!=='SUPERSEDED'); if(!milestone) throw new Error('Payment milestone not found.'); if(amount-Number(milestone.balance||0)>0.01) throw new Error('Payment cannot exceed the selected milestone balance.'); }
+      const year=new Date().getFullYear(), paymentId=`DE-PMT-${year}-${String(mockState.payments.length+1).padStart(6,'0')}`, receiptNumber=`DE-RCP-${year}-${String(mockState.receipts.length+1).padStart(4,'0')}`;
+      const payment={paymentId,eventId:inv.eventId,customerId:inv.customerId,invoiceId:inv.invoiceId,paymentPlanId:data.paymentPlanId||'',amount:roundMoney(amount),method:data.method||'BANK',paymentDate:data.date||new Date().toISOString().slice(0,10),reference:data.reference||'',status:'APPROVED',createdBy:session.user.fullName,createdAt:new Date().toISOString(),receiptId:receiptNumber};
+      mockState.payments.push(payment);
+      if(milestone){milestone.receivedAmount=roundMoney(Number(milestone.receivedAmount||0)+amount); milestone.balance=roundMoney(Math.max(0,Number(milestone.expectedAmount||0)-milestone.receivedAmount)); milestone.status=milestone.balance<=0?'PAID':'PARTIALLY_PAID';}
+      refreshInvoice(inv);
+      const receipt={receiptId:receiptNumber,receiptNumber,paymentId,eventId:inv.eventId,customerId:inv.customerId,invoiceId:inv.invoiceId,amount:roundMoney(amount),receiptDate:payment.paymentDate,paymentMethod:payment.method,reference:payment.reference,remainingBalance:inv.outstanding,createdBy:session.user.fullName,createdAt:new Date().toISOString()}; mockState.receipts.push(receipt);
+      const income={incomeId:`DE-INC-${year}-${String(mockState.income.length+1).padStart(6,'0')}`,eventId:inv.eventId,invoiceId:inv.invoiceId,receiptId:receiptNumber,type:inv.outstanding<=0?'FINAL_SETTLEMENT':(inv.amountPaid===amount?'EVENT_ADVANCE':'EVENT_PAYMENT'),amount:roundMoney(amount),method:payment.method,reference:payment.reference,status:'APPROVED',submittedBy:session.user.fullName,date:payment.paymentDate}; mockState.income.push(income);
+      saveMock(); return {ok:true,data:{payment,receipt:publicReceipt(receipt),invoice:publicInvoice(inv)}};
+    }
+    if (action === 'listReceipts') {
+      requireFinance(session); let rows=mockState.receipts.slice(); if(data.invoiceId) rows=rows.filter(x=>x.invoiceId===data.invoiceId); if(data.eventId) rows=rows.filter(x=>x.eventId===data.eventId); return {ok:true,data:rows.slice().reverse().map(publicReceipt)};
+    }
+    if (action === 'getReceipt') {
+      requireFinance(session); const r=mockState.receipts.find(x=>x.receiptId===data.receiptId); if(!r) throw new Error('Receipt not found.'); return {ok:true,data:publicReceipt(r)};
     }
 
     if (action === 'listExpenses') return {ok:true,data:mockState.expenses.slice().reverse()};

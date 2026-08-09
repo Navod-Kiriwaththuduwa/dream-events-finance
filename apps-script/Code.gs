@@ -52,6 +52,15 @@ function routeRequest_(req) {
   if (action === 'getQuotation') return getQuotation_(user, data);
   if (action === 'createQuotation') return createQuotation_(user, data);
   if (action === 'updateQuotationStatus') return updateQuotationStatus_(user, data);
+  if (action === 'listInvoices') return listInvoices_(user, data);
+  if (action === 'getInvoice') return getInvoice_(user, data);
+  if (action === 'createInvoiceFromQuotation') return createInvoiceFromQuotation_(user, data);
+  if (action === 'listPaymentPlans') return listPaymentPlans_(user, data);
+  if (action === 'createPaymentPlan') return createPaymentPlan_(user, data);
+  if (action === 'listPayments') return listPayments_(user, data);
+  if (action === 'recordPayment') return recordPayment_(user, data);
+  if (action === 'listReceipts') return listReceipts_(user, data);
+  if (action === 'getReceipt') return getReceipt_(user, data);
   if (action === 'listExpenses') return listExpenses_(user);
   if (action === 'createExpense') return createExpense_(user, data);
   if (action === 'approveExpense') return approveExpense_(user, data);

@@ -4,7 +4,7 @@
   const $ = (s, root=document) => root.querySelector(s);
   const $$ = (s, root=document) => [...root.querySelectorAll(s)];
   let session = API.getSession();
-  let state = { route:'dashboard', customers:[], events:[], expenses:[], income:[], quotations:[], currentEvent:null, currentEventTab:'overview', budget:null, budgetCollapsed:new Set(), currentQuotation:null };
+  let state = { route:'dashboard', customers:[], events:[], expenses:[], income:[], quotations:[], invoices:[], payments:[], receipts:[], paymentPlans:[], currentEvent:null, currentEventTab:'overview', budget:null, budgetCollapsed:new Set(), currentQuotation:null, currentInvoice:null, currentReceipt:null };
 
   const roundMoney = v => Math.round((Number(v||0) + Number.EPSILON) * 100) / 100;
   const money = v => { const n=roundMoney(v); return `${CFG.CURRENCY} ${n.toLocaleString('en-LK', {minimumFractionDigits:Number.isInteger(n)?0:2, maximumFractionDigits:2})}`; };
@@ -55,7 +55,7 @@
       if(route==='events') { state.events=await API.request('listEvents'); state.customers=await API.request('listCustomers'); return renderEvents(); }
       if(route==='expenses'||route==='approvals') { state.expenses=await API.request('listExpenses'); state.events=await API.request('listEvents'); return renderExpenses(route==='approvals'); }
       if(route==='income') { state.income=await API.request('listIncome'); state.events=await API.request('listEvents'); return renderIncome(); }
-      if(route==='sales') { state.quotations=await API.request('listQuotations'); state.events=await API.request('listEvents'); return renderSalesDocuments(); }
+      if(route==='sales') { [state.quotations,state.invoices,state.receipts,state.events]=await Promise.all([API.request('listQuotations'),API.request('listInvoices'),API.request('listReceipts'),API.request('listEvents')]); return renderSalesDocuments(); }
       renderComingSoon(titles[route]);
     } catch(err){ $('#content').innerHTML=`<div class="empty error-box"><h3>Unable to load</h3><p>${escapeHtml(err.message)}</p></div>`; }
   }
@@ -145,7 +145,7 @@
   }
   function renderEventShell(event,tab){
     const finance=session.user.role==='FINANCE_HEAD';
-    const tabs=[['overview','Overview'],...(finance?[['budget','Budget'],['quotation','Quotation']]:[]),['expenses','Expenses'],['income','Income']];
+    const tabs=[['overview','Overview'],...(finance?[['budget','Budget'],['quotation','Quotation'],['payments','Payments']]:[]),['expenses','Expenses'],['income','Income']];
     $('#content').innerHTML=`
       <div class="event-detail-head panel">
         <div><button class="text-btn back-link" data-go="events">← All Events</button><div class="event-detail-title"><span class="${statusClass(event.status)}">${escapeHtml(displayStatus(event.status))}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.customer?.name||event.customerName||'')} · ${escapeHtml(event.type||'Event')}</p></div></div>
@@ -169,11 +169,12 @@
       if(tab==='expenses') return await renderEventExpenses();
       if(tab==='income') return await renderEventIncome();
       if(tab==='quotation') return await renderEventQuotation();
+      if(tab==='payments') return await renderEventPayments();
     }catch(err){body.innerHTML=`<div class="empty error-box">${escapeHtml(err.message)}</div>`}
   }
   function renderEventOverview(){
     const e=state.currentEvent, finance=session.user.role==='FINANCE_HEAD';
-    const outstanding=finance?Math.max(0,Number(e.confirmedValue||0)-Number(e.approvedIncome||0)):0;
+    const outstanding=finance?Number(e.customerOutstanding ?? Math.max(0,Number(e.confirmedValue||0)-Number(e.approvedIncome||0))):0;
     $('#eventTabBody').innerHTML=`
       <div class="metric-grid event-metrics">
         ${finance?card('Confirmed Value',money(e.confirmedValue)):''}
@@ -497,13 +498,147 @@
     $$('[data-quote-view]').forEach(b=>b.onclick=()=>showQuotationPreview(b.dataset.quoteView));
     $$('[data-quote-revise]').forEach(b=>b.onclick=()=>quotationBuilderModal(b.dataset.quoteRevise));
   }
+  function bindInvoiceReceiptButtons(){
+    $$('[data-invoice-view]').forEach(b=>b.onclick=()=>showInvoicePreview(b.dataset.invoiceView));
+    $$('[data-receipt-view]').forEach(b=>b.onclick=()=>showReceiptPreview(b.dataset.receiptView));
+  }
   function renderSalesDocuments(){
     if(session.user.role!=='FINANCE_HEAD') return navigate('dashboard');
-    const qs=state.quotations||[];
-    $('#content').innerHTML=`<div class="toolbar"><input id="quoteSearch" class="search" placeholder="Search quotation, event, customer or status"></div><section class="panel table-panel"><table><thead><tr><th>Quotation</th><th>Event</th><th>Customer</th><th>Issue</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody id="quoteRows"></tbody></table></section>`;
-    const draw=items=>{$('#quoteRows').innerHTML=items.length?items.map(q=>`<tr><td><b>${escapeHtml(q.quotationNumber)}</b><small>Version ${escapeHtml(q.version)}</small></td><td>${escapeHtml(q.event?.name||q.eventId)}</td><td>${escapeHtml(q.customer?.name||'—')}</td><td>${formatPrettyDate(q.issueDate)}</td><td class="money">${quoteMoney(q.finalTotal)}</td><td><span class="${statusClass(q.status)}">${escapeHtml(displayStatus(q.status))}</span></td><td><button class="btn btn-xs btn-secondary" data-quote-view="${escapeHtml(q.quotationId)}">Preview</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">No quotations found.</td></tr>';bindQuotationButtons();};
-    draw(qs);$('#quoteSearch').oninput=e=>{const q=e.target.value.toLowerCase();draw(qs.filter(x=>JSON.stringify(x).toLowerCase().includes(q)))};
+    const qs=state.quotations||[], invs=state.invoices||[], receipts=state.receipts||[];
+    $('#content').innerHTML=`<div class="document-register">
+      <section><div class="panel-head register-head"><div><p class="eyebrow">QUOTATIONS</p><h3>Customer Quotations</h3></div></div><div class="panel table-panel"><table><thead><tr><th>Quotation</th><th>Event</th><th>Customer</th><th>Issue</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>${qs.length?qs.map(q=>`<tr><td><b>${escapeHtml(q.quotationNumber)}</b><small>Version ${escapeHtml(q.version)}</small></td><td>${escapeHtml(q.event?.name||q.eventId)}</td><td>${escapeHtml(q.customer?.name||'—')}</td><td>${formatPrettyDate(q.issueDate)}</td><td class="money">${quoteMoney(q.finalTotal)}</td><td><span class="${statusClass(q.status)}">${escapeHtml(displayStatus(q.status))}</span></td><td><button class="btn btn-xs btn-secondary" data-quote-view="${escapeHtml(q.quotationId)}">Preview</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">No quotations found.</td></tr>'}</tbody></table></div></section>
+      <section><div class="panel-head register-head"><div><p class="eyebrow">INVOICES</p><h3>Invoices</h3></div></div><div class="panel table-panel"><table><thead><tr><th>Invoice</th><th>Event</th><th>Date</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Status</th><th></th></tr></thead><tbody>${invs.length?invs.map(i=>`<tr><td><b>${escapeHtml(i.invoiceNumber)}</b><small>${escapeHtml(i.quotationId||'')}</small></td><td>${escapeHtml(i.event?.name||i.eventId)}</td><td>${formatPrettyDate(i.invoiceDate)}</td><td class="money">${quoteMoney(i.finalTotal)}</td><td class="money">${quoteMoney(i.amountPaid)}</td><td class="money">${quoteMoney(i.outstanding)}</td><td><span class="${statusClass(i.status)}">${escapeHtml(displayStatus(i.status))}</span></td><td><button class="btn btn-xs btn-secondary" data-invoice-view="${escapeHtml(i.invoiceId)}">Preview</button></td></tr>`).join(''):'<tr><td colspan="8" class="empty">No invoices found.</td></tr>'}</tbody></table></div></section>
+      <section><div class="panel-head register-head"><div><p class="eyebrow">RECEIPTS</p><h3>Receipts</h3></div></div><div class="panel table-panel"><table><thead><tr><th>Receipt</th><th>Event</th><th>Date</th><th>Amount</th><th>Invoice</th><th></th></tr></thead><tbody>${receipts.length?receipts.map(r=>`<tr><td><b>${escapeHtml(r.receiptNumber)}</b></td><td>${escapeHtml(r.event?.name||r.eventId)}</td><td>${formatPrettyDate(r.receiptDate)}</td><td class="money">${quoteMoney(r.amount)}</td><td>${escapeHtml(r.invoice?.invoiceNumber||r.invoiceId)}</td><td><button class="btn btn-xs btn-secondary" data-receipt-view="${escapeHtml(r.receiptId)}">Preview</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">No receipts found.</td></tr>'}</tbody></table></div></section>
+    </div>`; bindQuotationButtons();bindInvoiceReceiptButtons();
   }
+
+  function invoiceStatusOptions(selected='ISSUED'){
+    return ['ISSUED','PARTIALLY_PAID','PAID','OVERDUE','CANCELLED'].map(x=>`<option ${x===selected?'selected':''}>${displayStatus(x)}</option>`).join('');
+  }
+  function documentLineGroups(lines){
+    const sorted=(lines||[]).slice().sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0));
+    const groups=[]; let current=null;
+    sorted.forEach(line=>{
+      if(line.level==='MAIN'){current={main:line,subs:[]};groups.push(current);}
+      else if(line.level==='SUB'){if(!current){current={main:{mainItem:line.mainItem||'Event Services',description:''},subs:[]};groups.push(current);}current.subs.push(line);}
+    });
+    return groups;
+  }
+  function invoiceLinesHtml(lines){
+    return documentLineGroups(lines).map(g=>`<div class="quote-group"><div class="quote-group-head"><h4>${escapeHtml(g.main.mainItem)}</h4>${g.main.description?`<p>${escapeHtml(g.main.description)}</p>`:''}</div>${g.subs.map(sub=>`<div class="quote-line"><div><strong>${escapeHtml(sub.subItem||sub.description)}</strong>${sub.description&&sub.description!==sub.subItem?`<small>${escapeHtml(sub.description)}</small>`:''}</div><b>${quoteMoney(sub.amount)}</b></div>`).join('')}</div>`).join('');
+  }
+  function invoicePreviewHtml(inv){
+    const e=inv.event||state.currentEvent||{}, c=inv.customer||e.customer||{};
+    return `<article class="quotation-sheet invoice-sheet" data-print-invoice>
+      <header class="quotation-brand"><div class="quotation-logo">DE</div><div><h2>Dream Events</h2><p>Making moments beautifully memorable</p><p class="quotation-contact">${escapeHtml(CFG.COMPANY_PHONE||'+94 70 628 0480')}</p></div><div class="quotation-title"><span>INVOICE</span><strong>${escapeHtml(inv.invoiceNumber)}</strong></div></header>
+      <div class="quotation-meta-grid">
+        <div><span>Bill to</span><strong>${escapeHtml(c.name||'Customer')}</strong><small>${escapeHtml(c.mobile||'')}${c.email?' · '+escapeHtml(c.email):''}</small></div>
+        <div><span>Event</span><strong>${escapeHtml(e.name||'')}</strong><small>${escapeHtml(e.type||'')} · ${formatPrettyDate(e.date)}</small></div>
+        <div><span>Invoice date</span><strong>${formatPrettyDate(inv.invoiceDate)}</strong><small>Quotation ${escapeHtml(inv.quotationId||'—')}</small></div>
+        <div><span>Due date</span><strong>${formatPrettyDate(inv.dueDate)}</strong><small>${escapeHtml(displayStatus(inv.status))}</small></div>
+      </div>
+      <section class="quotation-items">${invoiceLinesHtml(inv.lines)||'<div class="empty">No invoice items.</div>'}</section>
+      <div class="quotation-totals">
+        <div><span>Subtotal</span><b>${quoteMoney(inv.subtotal)}</b></div>
+        ${Number(inv.discount||0)?`<div><span>Discount</span><b>− ${quoteMoney(inv.discount)}</b></div>`:''}
+        <div class="grand"><span>Invoice total</span><b>${quoteMoney(inv.finalTotal)}</b></div>
+        <div><span>Paid</span><b>${quoteMoney(inv.amountPaid)}</b></div>
+        <div class="grand outstanding-total"><span>Outstanding</span><b>${quoteMoney(inv.outstanding)}</b></div>
+      </div>
+      <section class="quotation-authorized"><div><span>Authorized by Dream Events</span><div class="authorized-line"></div><strong>Dream Events</strong></div></section>
+      <footer class="quotation-footer"><span>Dream Events · ${escapeHtml(CFG.COMPANY_PHONE||'+94 70 628 0480')}</span><span>Thank you for choosing Dream Events.</span></footer>
+    </article>`;
+  }
+  function receiptPreviewHtml(r){
+    const e=r.event||{}, c=r.customer||{}, inv=r.invoice||{};
+    return `<article class="quotation-sheet receipt-sheet" data-print-receipt>
+      <header class="quotation-brand"><div class="quotation-logo">DE</div><div><h2>Dream Events</h2><p>Making moments beautifully memorable</p><p class="quotation-contact">${escapeHtml(CFG.COMPANY_PHONE||'+94 70 628 0480')}</p></div><div class="quotation-title"><span>RECEIPT</span><strong>${escapeHtml(r.receiptNumber)}</strong></div></header>
+      <div class="quotation-meta-grid receipt-meta">
+        <div><span>Received from</span><strong>${escapeHtml(c.name||'Customer')}</strong><small>${escapeHtml(c.mobile||'')}</small></div>
+        <div><span>Event</span><strong>${escapeHtml(e.name||'')}</strong><small>${escapeHtml(e.eventId||'')}</small></div>
+        <div><span>Receipt date</span><strong>${formatPrettyDate(r.receiptDate)}</strong><small>Invoice ${escapeHtml(inv.invoiceNumber||r.invoiceId||'—')}</small></div>
+        <div><span>Payment method</span><strong>${escapeHtml(displayStatus(r.paymentMethod||'—'))}</strong><small>${r.reference?'Reference '+escapeHtml(r.reference):'No reference'}</small></div>
+      </div>
+      <section class="receipt-amount"><span>Amount received</span><strong>${quoteMoney(r.amount)}</strong><p>Thank you. This payment has been recorded against ${escapeHtml(inv.invoiceNumber||r.invoiceId||'the event invoice')}.</p></section>
+      <div class="receipt-balance"><span>Remaining invoice balance</span><strong>${quoteMoney(r.remainingBalance)}</strong></div>
+      <section class="quotation-authorized"><div><span>Authorized by Dream Events</span><div class="authorized-line"></div><strong>Dream Events</strong></div></section>
+      <footer class="quotation-footer"><span>Dream Events · ${escapeHtml(CFG.COMPANY_PHONE||'+94 70 628 0480')}</span><span>Payment receipt</span></footer>
+    </article>`;
+  }
+  function invoicePrintCss(){ return quotationPrintCss()+`.outstanding-total{margin-top:4px;border-top:1px dashed #cbbd9d}.receipt-amount{margin:24px 0;padding:24px;border:1px solid #ddd4c4;border-radius:16px;text-align:center;break-inside:avoid}.receipt-amount span{display:block;text-transform:uppercase;letter-spacing:.12em;font-size:9px;color:#756e63}.receipt-amount strong{display:block;font-family:Georgia,serif;font-size:30px;margin:8px 0}.receipt-amount p{font-size:10px;color:#756e63}.receipt-balance{display:flex;justify-content:space-between;gap:16px;padding:15px 0;border-top:1px solid #ddd4c4;border-bottom:1px solid #ddd4c4;font-size:11px;break-inside:avoid}.receipt-balance strong{font-size:15px}`; }
+  function printDoc(title,html){
+    const w=window.open('','_blank','width=900,height=1000'); if(!w){toast('Allow pop-ups to print this document.','error');return;}
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${invoicePrintCss()}</style></head><body>${html}</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),250);
+  }
+
+  async function renderEventPayments(){
+    if(session.user.role!=='FINANCE_HEAD') throw new Error('Finance Head access required.');
+    const eventId=state.currentEvent.eventId;
+    const [invoices,plans,payments,receipts,quotes]=await Promise.all([
+      API.request('listInvoices',{eventId}),API.request('listPaymentPlans',{eventId}),API.request('listPayments',{eventId}),API.request('listReceipts',{eventId}),API.request('listQuotations',{eventId})
+    ]);
+    state.invoices=invoices;state.paymentPlans=plans;state.payments=payments;state.receipts=receipts;
+    const activeInvoice=invoices.find(x=>x.status!=='CANCELLED')||null;
+    const accepted=quotes.find(x=>x.status==='ACCEPTED')||null;
+    if(!activeInvoice){
+      $('#eventTabBody').innerHTML=`<div class="budget-intro"><div><p class="eyebrow">CUSTOMER FINANCE</p><h3>Invoice & Payments</h3><p class="muted">Create an invoice from the accepted quotation, then define payment milestones and record customer payments.</p></div>${accepted?'<button id="createInvoiceBtn" class="btn btn-primary">+ Create Invoice</button>':''}</div>${accepted?`<section class="panel finance-start-card"><p class="eyebrow">ACCEPTED QUOTATION</p><h3>${escapeHtml(accepted.quotationNumber)}</h3><strong>${quoteMoney(accepted.finalTotal)}</strong><p>Ready to invoice.</p></section>`:`<section class="panel empty big-empty"><div class="coming-icon">✓</div><h3>Accept a quotation first</h3><p>An invoice can only be created from the customer-approved quotation.</p></section>`}`;
+      $('#createInvoiceBtn')?.addEventListener('click',()=>invoiceCreateModal(accepted)); return;
+    }
+    const invoicePlans=plans.filter(x=>x.invoiceId===activeInvoice.invoiceId);
+    const invoicePaymentsRows=payments.filter(x=>x.invoiceId===activeInvoice.invoiceId);
+    const invoiceReceipts=receipts.filter(x=>x.invoiceId===activeInvoice.invoiceId);
+    $('#eventTabBody').innerHTML=`
+      <div class="budget-intro"><div><p class="eyebrow">CUSTOMER FINANCE</p><h3>Invoice & Payments</h3><p class="muted">Track milestones, payments, receipts and the customer outstanding balance.</p></div><div class="inline-actions"><button id="previewInvoiceBtn" class="btn btn-secondary">Preview Invoice</button>${Number(activeInvoice.outstanding)>0?'<button id="recordPaymentBtn" class="btn btn-primary">+ Record Payment</button>':''}</div></div>
+      <div class="metric-grid payment-metrics">${card('Invoice Total',quoteMoney(activeInvoice.finalTotal))}${card('Paid',quoteMoney(activeInvoice.amountPaid))}${card('Outstanding',quoteMoney(activeInvoice.outstanding))}${card('Status',displayStatus(activeInvoice.status),`Due ${formatPrettyDate(activeInvoice.dueDate)}`)}</div>
+      <div class="section-grid payment-grid">
+        <section class="panel"><div class="panel-head"><div><p class="eyebrow">PAYMENT PLAN</p><h3>Milestones</h3></div>${invoicePlans.length||invoicePaymentsRows.length?'':'<button id="createPlanBtn" class="btn btn-sm btn-secondary">Create Plan</button>'}</div>
+          ${invoicePlans.length?paymentPlanTable(invoicePlans):`<div class="empty">${invoicePaymentsRows.length?'Payments are being recorded directly against the invoice. A milestone plan can only be created before the first payment.':'No payment plan yet. You can still record direct invoice payments, or create a structured milestone plan.'}</div>`}
+        </section>
+        <section class="panel"><div class="panel-head"><div><p class="eyebrow">PAYMENT HISTORY</p><h3>Customer Payments</h3></div></div>${paymentHistoryHtml(invoicePaymentsRows,invoiceReceipts)}</section>
+      </div>`;
+    $('#previewInvoiceBtn').onclick=()=>showInvoicePreview(activeInvoice.invoiceId);
+    $('#recordPaymentBtn')?.addEventListener('click',()=>recordPaymentModal(activeInvoice,invoicePlans));
+    $('#createPlanBtn')?.addEventListener('click',()=>paymentPlanModal(activeInvoice));
+    $$('[data-receipt-view]').forEach(b=>b.onclick=()=>showReceiptPreview(b.dataset.receiptView));
+  }
+  function paymentPlanTable(rows){
+    return `<div class="payment-plan-list">${rows.map(r=>`<div class="payment-plan-row"><div><strong>${escapeHtml(r.milestoneName)}</strong><small>${formatPrettyDate(r.dueDate)} · ${Number(r.percentage||0).toFixed(0)}%</small></div><div><span>Expected</span><b>${quoteMoney(r.expectedAmount)}</b></div><div><span>Received</span><b>${quoteMoney(r.receivedAmount)}</b></div><div><span>Balance</span><b>${quoteMoney(r.balance)}</b></div><span class="${statusClass(r.status)}">${escapeHtml(displayStatus(r.status))}</span></div>`).join('')}</div>`;
+  }
+  function paymentHistoryHtml(payments,receipts){
+    if(!payments.length)return '<div class="empty">No customer payments recorded yet.</div>';
+    const receiptByPayment=Object.fromEntries(receipts.map(r=>[r.paymentId,r]));
+    return `<div class="payment-history">${payments.map(p=>{const r=receiptByPayment[p.paymentId];return `<div class="payment-history-row"><div><strong>${quoteMoney(p.amount)}</strong><small>${formatPrettyDate(p.paymentDate)} · ${escapeHtml(displayStatus(p.method))}${p.reference?' · '+escapeHtml(p.reference):''}</small></div>${r?`<button class="btn btn-xs btn-secondary" data-receipt-view="${escapeHtml(r.receiptId)}">${escapeHtml(r.receiptNumber)}</button>`:''}</div>`}).join('')}</div>`;
+  }
+  function invoiceCreateModal(q){
+    const eventDate=state.currentEvent?.date||today();
+    showModal('Create Invoice',`<form id="invoiceForm" class="form-grid"><div class="span-2 summary-strip"><div><span>Accepted quotation</span><strong>${escapeHtml(q.quotationNumber)}</strong></div><div><span>Invoice total</span><strong>${quoteMoney(q.finalTotal)}</strong></div></div><label>Invoice date<input type="date" name="invoiceDate" value="${today()}" required></label><label>Due date<input type="date" name="dueDate" value="${escapeHtml(eventDate)}" required></label><div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Create Invoice</button></div></form>`);
+    $('#invoiceForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));data.quotationId=q.quotationId;try{const inv=await API.request('createInvoiceFromQuotation',data);closeModal();toast(`${inv.invoiceNumber} created.`);await openEvent(state.currentEvent.eventId,'payments');showInvoicePreview(inv.invoiceId);}catch(err){toast(err.message,'error')}};bindModalCloseButtons();
+  }
+  function paymentPlanModal(inv){
+    showModal('Create Payment Plan',`<form id="paymentPlanForm" class="form-grid"><label class="span-2">Plan type<select id="planType" name="planType"><option value="STANDARD_50_50">50% Booking / 50% Final</option><option value="STANDARD_30_70">30% Booking / 70% Final</option><option value="CUSTOM">Custom milestones</option></select></label><div id="planEditor" class="span-2"></div><div class="plan-total span-2"><span>Invoice total</span><strong>${quoteMoney(inv.finalTotal)}</strong><span id="planDifference"></span></div><div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Save Payment Plan</button></div></form>`);
+    const render=()=>renderPaymentPlanEditor(inv,$('#planType').value);$('#planType').onchange=render;render();
+    $('#paymentPlanForm').onsubmit=async e=>{e.preventDefault();const rows=$$('[data-plan-row]').map(r=>({name:$('[name="milestoneName"]',r).value.trim(),amount:Number($('[name="milestoneAmount"]',r).value||0),dueDate:$('[name="milestoneDue"]',r).value})).filter(r=>r.name&&r.amount>0);try{await API.request('createPaymentPlan',{invoiceId:inv.invoiceId,planType:$('#planType').value,milestones:rows});closeModal();toast('Payment plan created.');openEvent(inv.eventId,'payments');}catch(err){toast(err.message,'error')}};bindModalCloseButtons();
+  }
+  function renderPaymentPlanEditor(inv,type){
+    const editor=$('#planEditor'), total=Number(inv.finalTotal||0), firstDate=today(), finalDate=inv.dueDate||state.currentEvent?.date||today();
+    let rows=[];
+    if(type==='STANDARD_50_50'){const first=Math.round(total*.5);rows=[['Booking Advance',first,firstDate],['Final Balance',total-first,finalDate]];}
+    else if(type==='STANDARD_30_70'){const first=Math.round(total*.3);rows=[['Booking Advance',first,firstDate],['Final Balance',total-first,finalDate]];}
+    else rows=[['Booking Advance',0,firstDate],['Final Balance',total,finalDate]];
+    editor.innerHTML=`<div class="plan-editor"><div class="plan-editor-head"><h4>Milestones</h4>${type==='CUSTOM'?'<button type="button" id="addPlanRow" class="btn btn-xs btn-secondary">+ Milestone</button>':''}</div><div id="planRows">${rows.map((r,i)=>planRowHtml(r[0],r[1],r[2],type==='CUSTOM',i)).join('')}</div></div>`;
+    $('#addPlanRow')?.addEventListener('click',()=>{$('#planRows').insertAdjacentHTML('beforeend',planRowHtml('Milestone',0,finalDate,true,$$('[data-plan-row]').length));bindPlanRowControls(inv);});bindPlanRowControls(inv);
+  }
+  function planRowHtml(name,amount,due,removable,index){return `<div class="plan-editor-row" data-plan-row><label>Milestone<input name="milestoneName" value="${escapeHtml(name)}"></label><label>Amount (LKR)<input type="number" min="0" step="1" name="milestoneAmount" value="${Number(amount||0)}"></label><label>Due date<input type="date" name="milestoneDue" value="${escapeHtml(due)}"></label>${removable&&index>1?'<button type="button" class="icon-btn danger" data-remove-plan title="Remove">×</button>':'<span></span>'}</div>`;}
+  function bindPlanRowControls(inv){
+    $$('[data-remove-plan]').forEach(b=>b.onclick=()=>{b.closest('[data-plan-row]').remove();updatePlanDifference(inv)});$$('[data-plan-row] input').forEach(i=>i.oninput=()=>updatePlanDifference(inv));updatePlanDifference(inv);
+  }
+  function updatePlanDifference(inv){const sum=$$('[name="milestoneAmount"]').reduce((a,i)=>a+Number(i.value||0),0),diff=Math.round(Number(inv.finalTotal||0)-sum),el=$('#planDifference');if(el)el.textContent=diff===0?'Plan matches invoice':diff>0?`${quoteMoney(diff)} still unallocated`:`${quoteMoney(Math.abs(diff))} over invoice total`;}
+  function recordPaymentModal(inv,plans){
+    const available=plans.filter(p=>Number(p.balance||0)>0);showModal('Record Customer Payment',`<form id="paymentForm" class="form-grid"><div class="span-2 summary-strip"><div><span>Invoice</span><strong>${escapeHtml(inv.invoiceNumber)}</strong></div><div><span>Outstanding</span><strong>${quoteMoney(inv.outstanding)}</strong></div></div><label class="span-2">Payment milestone<select name="paymentPlanId">${available.length?'<option value="">Select milestone</option>':'<option value="">General invoice payment</option>'}${available.map(p=>`<option value="${escapeHtml(p.paymentPlanId)}">${escapeHtml(p.milestoneName)} — balance ${quoteMoney(p.balance)}</option>`).join('')}</select></label><label>Amount (LKR)<input type="number" min="1" max="${Number(inv.outstanding||0)}" step="0.01" name="amount" required></label><label>Payment method<select name="method"><option value="BANK">Bank Transfer</option><option value="CASH">Cash</option><option value="CARD">Card</option><option value="OTHER">Other</option></select></label><label>Date<input type="date" name="date" value="${today()}" required></label><label>Reference<input name="reference" placeholder="Bank/reference number"></label><div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Record & Generate Receipt</button></div></form>`);
+    $('#paymentForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));data.invoiceId=inv.invoiceId;try{const out=await API.request('recordPayment',data);closeModal();toast(`${out.receipt.receiptNumber} generated.`);await openEvent(inv.eventId,'payments');showReceiptPreview(out.receipt.receiptId);}catch(err){toast(err.message,'error')}};bindModalCloseButtons();
+  }
+  async function showInvoicePreview(invoiceId){try{const inv=await API.request('getInvoice',{invoiceId});state.currentInvoice=inv;showModal('Invoice Preview',`<div class="quotation-preview-wrap"><div class="quotation-preview-actions"><button id="printInvoiceBtn" class="btn btn-primary">Print / Save PDF</button></div>${invoicePreviewHtml(inv)}</div>`);$('#printInvoiceBtn').onclick=()=>printDoc(inv.invoiceNumber,invoicePreviewHtml(inv));}catch(err){toast(err.message,'error')}}
+  async function showReceiptPreview(receiptId){try{const r=await API.request('getReceipt',{receiptId});state.currentReceipt=r;showModal('Receipt Preview',`<div class="quotation-preview-wrap"><div class="quotation-preview-actions"><button id="printReceiptBtn" class="btn btn-primary">Print / Save PDF</button></div>${receiptPreviewHtml(r)}</div>`);$('#printReceiptBtn').onclick=()=>printDoc(r.receiptNumber,receiptPreviewHtml(r));}catch(err){toast(err.message,'error')}}
 
   function renderComingSoon(title){ $('#content').innerHTML=`<section class="panel empty big-empty"><div class="coming-icon">✦</div><h3>${escapeHtml(title)}</h3><p>The database structure is already reserved for this module. It will be connected in a later build phase.</p></section>`; }
   function bindRouteLinks(){ $$('[data-go]').forEach(x=>x.onclick=()=>navigate(x.dataset.go)); bindOpenEventButtons(); }

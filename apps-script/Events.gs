@@ -7,7 +7,7 @@ function mapEvent_(r,user){
     customer:c?{customerId:c.Customer_ID,name:c.Customer_Name,mobile:c.Mobile,whatsapp:c.WhatsApp,email:c.Email}:null,
     date:formatDateOnly_(r.Event_Date),startTime:r.Start_Time||'',endTime:r.End_Time||'',venue:r.Venue,guestCount:Number(r.Guest_Count||0),
     coordinator:r.Coordinator||'',status:r.Status,confirmedValue:user.Role==='FINANCE_HEAD'?Number(r.Confirmed_Value||0):null,notes:r.Notes||'',
-    approvedExpenses:expenses,approvedIncome:income,createdAt:r.Created_At,updatedAt:r.Updated_At
+    approvedExpenses:expenses,approvedIncome:income,customerOutstanding:user.Role==='FINANCE_HEAD'?customerOutstandingForEvent_(r.Event_ID):null,createdAt:r.Created_At,updatedAt:r.Updated_At
   };
 }
 function listEvents_(user){ return getRows_('03_EVENTS').filter(r=>r.Status!=='ARCHIVED').map(r=>mapEvent_(r,user)); }
