@@ -37,7 +37,14 @@ function routeRequest_(req) {
   if (action === 'listCustomers') return listCustomers_(user);
   if (action === 'createCustomer') return createCustomer_(user, data);
   if (action === 'listEvents') return listEvents_(user);
+  if (action === 'getEvent') return getEvent_(user, data);
   if (action === 'createEvent') return createEvent_(user, data);
+  if (action === 'updateEvent') return updateEvent_(user, data);
+  if (action === 'getBudget') return getBudget_(user, data);
+  if (action === 'listBudgetTargets') return listBudgetTargets_(user, data);
+  if (action === 'createBudgetLine') return createBudgetLine_(user, data);
+  if (action === 'updateBudgetLine') return updateBudgetLine_(user, data);
+  if (action === 'deleteBudgetLine') return deleteBudgetLine_(user, data);
   if (action === 'listExpenses') return listExpenses_(user);
   if (action === 'createExpense') return createExpense_(user, data);
   if (action === 'approveExpense') return approveExpense_(user, data);
