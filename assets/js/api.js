@@ -157,7 +157,6 @@
     const mains=lines.filter(x=>x.level==='MAIN').sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0));
     const output=[]; let order=1;
     mains.forEach(main=>{
-      if(main.quotationVisible===false) return;
       const subs=lines.filter(x=>x.level==='SUB'&&x.parentLineId===main.budgetLineId).sort((a,b)=>Number(a.displayOrder||0)-Number(b.displayOrder||0));
       const visibleSubs=[];
       subs.forEach(sub=>{
@@ -285,7 +284,7 @@
         budgetLineId:`DE-BLN-2026-${String(mockState.budgetLines.length+1).padStart(6,'0')}`,
         budgetId:budgetHeader(data.eventId).budgetId,eventId:data.eventId,level,parentLineId:data.parentLineId||'',
         mainItem:level==='MAIN'?String(data.name||'').trim():'',subItem:level==='SUB'?String(data.name||'').trim():'',detailedItem:level==='DETAIL'?String(data.name||'').trim():'',
-        description:data.description||'',supplierId:data.supplierId||'',estimatedQty:Number(data.estimatedQty||0),unit:data.unit||'',estimatedUnitCost:Number(data.estimatedUnitCost||0),sellingPrice:Number(data.sellingPrice||0),actualQty:Number(data.actualQty||0),actualUnitCost:Number(data.actualUnitCost||0),quotationVisible:data.quotationVisible!==false,internalNotes:data.internalNotes||'',displayOrder:Number(data.displayOrder||mockState.budgetLines.length+1),status:'ACTIVE'
+        description:data.description||'',supplierId:data.supplierId||'',estimatedQty:Number(data.estimatedQty||0),unit:data.unit||'',estimatedUnitCost:Number(data.estimatedUnitCost||0),sellingPrice:Number(data.sellingPrice||0),actualQty:Number(data.actualQty||0),actualUnitCost:Number(data.actualUnitCost||0),quotationVisible:level==='MAIN'?true:data.quotationVisible!==false,internalNotes:data.internalNotes||'',displayOrder:Number(data.displayOrder||mockState.budgetLines.length+1),status:'ACTIVE'
       };
       if(!lineName(rec)) throw new Error('Item name is required.');
       mockState.budgetLines.push(rec); saveMock(); return {ok:true,data:rec};
@@ -299,7 +298,7 @@
       if(rec.level==='DETAIL') rec.detailedItem=name;
       ['description','supplierId','unit','internalNotes'].forEach(k=>{if(k in data)rec[k]=data[k]||''});
       ['estimatedQty','estimatedUnitCost','sellingPrice','actualQty','actualUnitCost','displayOrder'].forEach(k=>{if(k in data)rec[k]=Number(data[k]||0)});
-      if('quotationVisible' in data) rec.quotationVisible=Boolean(data.quotationVisible);
+      if(rec.level==='MAIN') rec.quotationVisible=true; else if('quotationVisible' in data) rec.quotationVisible=Boolean(data.quotationVisible);
       saveMock(); return {ok:true,data:rec};
     }
     if (action === 'moveBudgetLine') {

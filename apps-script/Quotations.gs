@@ -6,7 +6,6 @@ function quotationTotals_(subtotal,type,value){ const sub=Number(subtotal||0),va
 function quotationBudgetLines_(eventId){
   const rows=budgetLinesForEvent_(eventId),out=[];let order=1;
   rows.filter(x=>x.Level==='MAIN').sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0)).forEach(main=>{
-    if(!quotationVisible_(main.Quotation_Visible))return;
     const visible=[];
     rows.filter(x=>x.Level==='SUB'&&x.Parent_Line_ID===main.Budget_Line_ID).sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0)).forEach(sub=>{
       let amount=0;
