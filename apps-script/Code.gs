@@ -72,10 +72,33 @@ function routeRequest_(req) {
 
 function bridgeOutput_(payload, clientOrigin) {
   const allowed = getAllowedOrigin_();
-  const target = (clientOrigin && (!allowed || clientOrigin === allowed)) ? clientOrigin : (allowed || '*');
-  const json = JSON.stringify(payload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+
+  const target =
+    (clientOrigin && (!allowed || clientOrigin === allowed))
+      ? clientOrigin
+      : (allowed || '*');
+
+  const json = JSON.stringify(payload)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+
   const targetJson = JSON.stringify(target);
-  return HtmlService.createHtmlOutput('<!doctype html><html><body><script>window.parent.postMessage(' + json + ',' + targetJson + ');<\/script></body></html>');
+
+  const html =
+    '<!doctype html>' +
+    '<html>' +
+    '<head><meta charset="utf-8"></head>' +
+    '<body>' +
+    '<script>' +
+    'window.top.postMessage(' + json + ',' + targetJson + ');' +
+    '</script>' +
+    '</body>' +
+    '</html>';
+
+  return HtmlService
+    .createHtmlOutput(html)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function validateOrigin_(origin) {
