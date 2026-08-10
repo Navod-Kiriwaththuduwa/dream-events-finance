@@ -1,0 +1,27 @@
+/* Dream Events V1.6.1 — Operations section header spacing fix */
+
+/* table-panel intentionally has zero padding for tables.
+   V1.6 operation headers need their own inset so eyebrow text is not clipped
+   by the panel border/overflow edge. */
+.table-panel > .panel-head {
+  padding: 18px 20px 0;
+  margin-bottom: 12px;
+  overflow: visible;
+}
+
+.table-panel > .panel-head .eyebrow {
+  line-height: 1.35;
+  padding-top: 1px;
+  margin-bottom: 7px;
+}
+
+.table-panel > .panel-head h3 {
+  line-height: 1.25;
+}
+
+/* Keep good spacing on smaller screens as well. */
+@media (max-width: 780px) {
+  .table-panel > .panel-head {
+    padding: 16px 14px 0;
+  }
+}
