@@ -1,34 +1,59 @@
-# Dream Events Finance V1.5.3 — Payment Speed & Timeout Fix
+# Dream Events Finance V1.6.0 — Suppliers, Payables & Inventory
 
-This package fixes the Payments tab timeout without changing the database or existing payment records.
+This update adds:
+- Supplier master
+- Supplier selection for Credit / Pay Later expenses
+- Supplier / Owner / Team payables
+- Payable settlement and reimbursement history
+- Payable due dates
+- Reusable inventory master
+- Inventory allocation to events
+- Internal cost per event/use
+- Default customer charge per use
+- Inventory return tracking
 
-## Files
+It keeps the existing V1.5.3 payment hotfix and the expense attachment upload.
 
-### GitHub Pages
-Replace/upload:
-- `index.html`
-- `assets/js/api-hotfix.js` (new file)
+## GitHub files
 
-The hotfix gives every backend request its own hidden iframe, so simultaneous requests no longer overwrite each other. It also combines the four payment-data requests (invoices, plans, payments, receipts) into one lightweight backend request.
+Upload / replace:
 
-### Google Apps Script
-Replace:
-- `Payments.gs`
+- `index.html` — replace
+- `assets/js/ops.js` — new file
+- `apps-script/Code.gs` — replace the GitHub copy
+- `apps-script/Transactions.gs` — replace the GitHub copy
+- `apps-script/Ops.gs` — new file
 
-Then deploy a **new Web App version**. Do not run `setupDreamEvents()`.
+Do not remove:
+- `assets/js/api-hotfix.js`
+- your existing `assets/js/app.js`
 
-## Deployment
-1. Save Apps Script.
-2. Deploy → Manage deployments → Edit.
-3. Version → New version.
-4. Description: `V1.5.3 payment speed timeout fix`.
-5. Execute as: Me.
-6. Who has access: Anyone.
-7. Deploy.
-8. Upload the GitHub files and commit.
-9. Wait for GitHub Pages, then hard refresh with Ctrl+Shift+R.
+## Google Apps Script
 
-## Test
-Open an event → Payments. It should load through one payment workspace request plus the quotation request, instead of five competing requests.
+1. Replace `Code.gs` with the file from this package.
+2. Replace `Transactions.gs` with the file from this package.
+3. Create a new Apps Script file named `Ops.gs`.
+4. Paste the package `Ops.gs` into it.
+5. Save.
+6. Deploy → Manage deployments → Edit → New version.
+7. Description: `V1.6 suppliers payables inventory`
+8. Keep Execute as: Me.
+9. Keep Who has access: Anyone.
+10. Deploy.
 
-Important: if a Record Payment action ever times out, check payment history / `14_PAYMENTS` before submitting it again.
+Do NOT run `setupDreamEvents()` again. The required sheets already exist:
+`19_SUPPLIERS`, `20_PAYABLES`, `21_REIMBURSEMENTS`, `22_INVENTORY`,
+`23_INVENTORY_ALLOCATIONS`, and `24_INVENTORY_TRANSACTIONS`.
+
+## Test order
+
+1. Open Suppliers → create one supplier.
+2. Add Expense → choose Credit / Pay Later → choose the supplier → submit.
+3. Open Payables → verify the supplier payable appears.
+4. Record a partial or full settlement.
+5. Open Inventory → create one reusable item.
+6. Allocate it to an event.
+7. Verify Available quantity decreases.
+8. Mark Returned and verify Available quantity increases again.
+
+Existing records are not deleted or reset.

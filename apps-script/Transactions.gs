@@ -1,11 +1,17 @@
 function listExpenses_(user){ return getRows_('17_EXPENSES').map(r=>({expenseId:r.Expense_ID,eventId:r.Event_ID,budgetLineId:r.Budget_Line_ID||'',scope:r.Expense_Scope,category:r.Main_Category,subCategory:r.Sub_Category,description:r.Description,supplierId:r.Supplier_ID,amount:Number(r.Amount||0),method:r.Payment_Method,paidFrom:r.Paid_From,date:formatDateOnly_(r.Expense_Date),attachmentUrl:r.Attachment_URL||'',status:r.Approval_Status,submittedBy:r.Submitted_By,approvedBy:r.Approved_By,rejectionReason:r.Rejection_Reason,locked:String(r.Locked).toLowerCase()==='true'})).reverse(); }
 function createExpense_(user,data){
   requireFields_(data,['category','amount','description']);const amount=Number(data.amount);if(!(amount>0))throw new Error('Amount must be greater than zero.');
+  const paidFrom=data.paidFrom||'DREAM_EVENTS_CASH';
+  if(paidFrom==='CREDIT_PAY_LATER'){
+    requireFields_(data,['supplierId']);
+    const supplier=findOne_('19_SUPPLIERS','Supplier_ID',data.supplierId);
+    if(!supplier||String(supplier.Status||'ACTIVE')!=='ACTIVE')throw new Error('Select an active supplier for Credit / Pay Later.');
+  }
   const id=nextNumber_('EXPENSE','DE-EXP-',6),finance=user.Role==='FINANCE_HEAD';let mainCategory=data.category,subCategory=data.subCategory||'';
   if(data.budgetLineId){const detail=findOne_('06_BUDGET_LINES','Budget_Line_ID',data.budgetLineId);if(!detail||detail.Level!=='DETAIL'||detail.Status==='ARCHIVED')throw new Error('Budget detail item not found.');if(data.eventId&&detail.Event_ID!==data.eventId)throw new Error('Budget item does not belong to this event.');const sub=findOne_('06_BUDGET_LINES','Budget_Line_ID',detail.Parent_Line_ID);const main=sub?findOne_('06_BUDGET_LINES','Budget_Line_ID',sub.Parent_Line_ID):null;if(main)mainCategory=main.Main_Item;if(sub)subCategory=sub.Sub_Item;}
   let uploaded=null;
   if(data.attachment&&data.attachment.base64) uploaded=uploadExpenseAttachment_(user,id,data.eventId||'',data.attachment);
-  const rec={Expense_ID:id,Event_ID:data.eventId||'',Budget_Line_ID:data.budgetLineId||'',Expense_Scope:data.eventId?'EVENT':'BUSINESS',Main_Category:mainCategory,Sub_Category:subCategory,Description:data.description,Supplier_ID:data.supplierId||'',Amount:amount,Payment_Method:data.paymentMethod||'',Paid_From:data.paidFrom||'DREAM_EVENTS_CASH',Expense_Date:data.date||Utilities.formatDate(new Date(),'Asia/Colombo','yyyy-MM-dd'),Attachment_URL:uploaded?uploaded.driveUrl:'',Approval_Status:finance?'APPROVED':'PENDING',Submitted_By:user.User_ID,Submitted_At:nowIso_(),Approved_By:finance?user.User_ID:'',Approved_At:finance?nowIso_():'',Locked:finance,Rejection_Reason:'',Notes:data.notes||'',Created_At:nowIso_()};
+  const rec={Expense_ID:id,Event_ID:data.eventId||'',Budget_Line_ID:data.budgetLineId||'',Expense_Scope:data.eventId?'EVENT':'BUSINESS',Main_Category:mainCategory,Sub_Category:subCategory,Description:data.description,Supplier_ID:data.supplierId||'',Amount:amount,Payment_Method:data.paymentMethod||'',Paid_From:paidFrom,Expense_Date:data.date||Utilities.formatDate(new Date(),'Asia/Colombo','yyyy-MM-dd'),Attachment_URL:uploaded?uploaded.driveUrl:'',Approval_Status:finance?'APPROVED':'PENDING',Submitted_By:user.User_ID,Submitted_At:nowIso_(),Approved_By:finance?user.User_ID:'',Approved_At:finance?nowIso_():'',Locked:finance,Rejection_Reason:'',Notes:data.notes||'',Created_At:nowIso_()};
   try{
     appendObject_('17_EXPENSES',rec);
     if(uploaded) appendObject_('27_ATTACHMENTS',{Attachment_ID:'ATT-'+Utilities.getUuid(),Module:'EXPENSE',Record_ID:id,Event_ID:rec.Event_ID,File_Name:uploaded.fileName,Mime_Type:uploaded.mimeType,Drive_File_ID:uploaded.driveFileId,Drive_URL:uploaded.driveUrl,Uploaded_By:user.User_ID,Uploaded_At:nowIso_()});

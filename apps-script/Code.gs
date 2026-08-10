@@ -67,6 +67,20 @@ function routeRequest_(req) {
   if (action === 'rejectExpense') return rejectExpense_(user, data);
   if (action === 'listIncome') return listIncome_(user);
   if (action === 'createIncome') return createIncome_(user, data);
+
+  // V1.6 Finance Operations
+  if (action === 'listSuppliers') return listSuppliers_(user);
+  if (action === 'createSupplier') return createSupplier_(user, data);
+  if (action === 'updateSupplier') return updateSupplier_(user, data);
+  if (action === 'getPayablesBundle') return getPayablesBundle_(user);
+  if (action === 'recordPayablePayment') return recordPayablePayment_(user, data);
+  if (action === 'updatePayableDueDate') return updatePayableDueDate_(user, data);
+  if (action === 'getInventoryBundle') return getInventoryBundle_(user);
+  if (action === 'createInventoryItem') return createInventoryItem_(user, data);
+  if (action === 'updateInventoryItem') return updateInventoryItem_(user, data);
+  if (action === 'allocateInventory') return allocateInventory_(user, data);
+  if (action === 'returnInventoryAllocation') return returnInventoryAllocation_(user, data);
+
   throw new Error('Unknown action: ' + action);
 }
 
