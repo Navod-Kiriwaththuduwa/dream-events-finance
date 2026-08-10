@@ -341,68 +341,39 @@
       <label>Estimated unit cost (LKR)<input type="number" min="0" step="0.01" name="estimatedUnitCost" value="${escapeHtml(existing?.estimatedUnitCost||0)}"></label><label>Customer selling price (optional)<input type="number" min="0" step="0.01" name="sellingPrice" value="${escapeHtml(existing?.sellingPrice||0)}"></label>
       <label>Actual quantity <small>Optional if linked expenses are used</small><input type="number" min="0" step="0.01" name="actualQty" value="${escapeHtml(existing?.actualQty||0)}"></label><label>Actual unit cost (LKR)<input type="number" min="0" step="0.01" name="actualUnitCost" value="${escapeHtml(existing?.actualUnitCost||0)}"></label>
       <label class="check-label span-2"><input type="checkbox" name="quotationVisible" ${existing?.quotationVisible===false?'':'checked'}> Allow this Detailed Item on quotation only when its Sub Item has no grouped selling price</label>`;
-    showModal(`${existing?'Edit':'Add'} ${labels[level]}`,`<form id="budgetLineForm" class="form-grid"><label class="span-2">${labels[level]} name<input name="name" required value="${escapeHtml(name)}" placeholder="${level==='MAIN'?'Decoration':level==='SUB'?'Flowers':'White Roses'}"></label>${extra}<label class="span-2">${level==='MAIN'?'Description':'Internal notes'}<textarea name="internalNotes">${escapeHtml(existing?.internalNotes||existing?.description||'')}</textarea></label>
-    <div class="form-actions span-2">
-  <button type="button" class="btn btn-ghost" data-close>Cancel</button>
-  <button type="button" id="budgetLineSaveBtn" class="btn btn-primary">
-    ${existing?'Save Changes':'Add Item'}
-  </button>
-</div>
-</form>`);
-    $('#budgetLineForm').onsubmit=async e=>{
-      const form = $('#budgetLineForm');
-const saveBtn = $('#budgetLineSaveBtn');
+    showModal(`${existing?'Edit':'Add'} ${labels[level]}`,`<form id="budgetLineForm" class="form-grid"><label class="span-2">${labels[level]} name<input name="name" required value="${escapeHtml(name)}" placeholder="${level==='MAIN'?'Decoration':level==='SUB'?'Flowers':'White Roses'}"></label>${extra}<label class="span-2">${level==='MAIN'?'Description':'Internal notes'}<textarea name="internalNotes">${escapeHtml(existing?.internalNotes||existing?.description||'')}</textarea></label><div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button type="button" id="budgetLineSaveBtn" class="btn btn-primary">${existing?'Save Changes':'Add Item'}</button></div></form>`);
 
-// Never allow Enter to accidentally save the budget item.
-form.addEventListener('submit', e => e.preventDefault());
+    const form=$('#budgetLineForm');
+    const saveBtn=$('#budgetLineSaveBtn');
 
-form.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
-    e.preventDefault();
-  }
-});
+    // Budget items are saved only by the explicit Add Item / Save Changes button.
+    // This prevents Enter inside a text/number field from submitting and closing the modal early.
+    form.addEventListener('submit',e=>e.preventDefault());
+    form.addEventListener('keydown',e=>{
+      if(e.key==='Enter' && e.target.tagName!=='TEXTAREA') e.preventDefault();
+    });
 
-saveBtn.onclick = async () => {
-  if (!form.reportValidity()) return;
+    saveBtn.onclick=async()=>{
+      if(!form.reportValidity()) return;
+      const fd=new FormData(form); const data=Object.fromEntries(fd);
+      data.quotationVisible=level==='MAIN'?true:fd.has('quotationVisible');
+      data.eventId=state.currentEvent.eventId; data.level=level; data.parentLineId=parentLineId||''; data.internalNotes=data.internalNotes||'';
 
-  const fd = new FormData(form);
-  const data = Object.fromEntries(fd);
-
-  data.quotationVisible =
-    level === 'MAIN' ? true : fd.has('quotationVisible');
-
-  data.eventId = state.currentEvent.eventId;
-  data.level = level;
-  data.parentLineId = parentLineId || '';
-  data.internalNotes = data.internalNotes || '';
-
-  // Stop double-clicks while saving.
-  saveBtn.disabled = true;
-  saveBtn.textContent = existing ? 'Saving…' : 'Adding…';
-
-  try {
-    if (existing) {
-      data.budgetLineId = existing.budgetLineId;
-      await API.request('updateBudgetLine', data);
-    } else {
-      await API.request('createBudgetLine', data);
-    }
-
-    closeModal();
-    toast(existing ? 'Budget item updated.' : 'Budget item added.');
-    await renderEventBudget();
-
-  } catch (err) {
-    toast(err.message, 'error');
-
-    // Keep the form open so nothing entered is lost.
-    saveBtn.disabled = false;
-    saveBtn.textContent = existing ? 'Save Changes' : 'Add Item';
-  }
-};
+      saveBtn.disabled=true;
+      saveBtn.textContent=existing?'Saving…':'Adding…';
+      try{
+        if(existing){data.budgetLineId=existing.budgetLineId;await API.request('updateBudgetLine',data)}
+        else await API.request('createBudgetLine',data);
+        closeModal(); toast(existing?'Budget item updated.':'Budget item added.'); await renderEventBudget();
+      }catch(err){
+        toast(err.message,'error');
+        saveBtn.disabled=false;
+        saveBtn.textContent=existing?'Save Changes':'Add Item';
+      }
     };
     bindModalCloseButtons();
   }
+
   function deleteBudgetLine(id){
     const line=state.budget.lines.find(x=>x.budgetLineId===id); if(!line)return;
     const name=line.mainItem||line.subItem||line.detailedItem;
@@ -703,7 +674,7 @@ saveBtn.onclick = async () => {
   $('#loginForm').addEventListener('submit',login);
   $('#logoutBtn').addEventListener('click',logout);
   $('#modalClose').addEventListener('click',closeModal);
-  $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+  $('#modal').addEventListener('click',e=>{if(e.target.id==='modal' && !$('#budgetLineForm'))closeModal()});
   $('#mainNav').addEventListener('click',e=>{const b=e.target.closest('[data-route]');if(b){navigate(b.dataset.route);document.body.classList.remove('nav-open')}});
   $('#menuBtn').onclick=()=>document.body.classList.toggle('nav-open');
   $('#quickExpenseBtn').onclick=async()=>{state.events=await API.request('listEvents');expenseModal()};
