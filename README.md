@@ -1,41 +1,34 @@
-# Dream Events Finance V1.5.2 - Expense Attachment Upload
+# Dream Events Finance V1.5.3 — Payment Speed & Timeout Fix
 
-This hotfix connects real receipt/bill uploads to Google Drive.
+This package fixes the Payments tab timeout without changing the database or existing payment records.
 
-## Files included
-- `assets/js/app.js` - frontend upload + View Attachment link
-- `apps-script/Transactions.gs` - Google Drive upload + attachment database record
+## Files
 
-## What changes
-- Expense receipt/bill is now uploaded as the actual file, not just a filename.
-- Supports image files and PDFs up to 5 MB.
-- Event expense files are saved under:
-  `Dream Events Finance / Events / <Event ID> / Expense Proof`
-- General business expense files are saved under:
-  `Dream Events Finance / Business Expenses / <Year>`
-- `17_EXPENSES.Attachment_URL` is populated.
-- A row is created in `27_ATTACHMENTS` with Drive file ID/URL and upload details.
-- Expense lists show a `View attachment` link when a file exists.
-- Files remain private in Google Drive; this hotfix does not make receipts public.
+### GitHub Pages
+Replace/upload:
+- `index.html`
+- `assets/js/api-hotfix.js` (new file)
 
-## Installation
-1. In GitHub, replace `assets/js/app.js` with the included file.
-2. Also replace `apps-script/Transactions.gs` in GitHub so the repository stays synchronized.
-3. In your Google Apps Script project, open `Transactions.gs` and replace its complete contents with the included `apps-script/Transactions.gs`.
-4. Save the Apps Script project.
-5. Deploy -> Manage deployments -> Edit -> New version.
-6. Description: `V1.5.2 expense attachment upload`.
-7. Keep Execute as: Me and Who has access: Anyone.
-8. Deploy.
-9. Refresh the GitHub Pages app with Ctrl+Shift+R.
+The hotfix gives every backend request its own hidden iframe, so simultaneous requests no longer overwrite each other. It also combines the four payment-data requests (invoices, plans, payments, receipts) into one lightweight backend request.
 
-DO NOT run `setupDreamEvents()` again. No database reset or schema change is required.
+### Google Apps Script
+Replace:
+- `Payments.gs`
+
+Then deploy a **new Web App version**. Do not run `setupDreamEvents()`.
+
+## Deployment
+1. Save Apps Script.
+2. Deploy → Manage deployments → Edit.
+3. Version → New version.
+4. Description: `V1.5.3 payment speed timeout fix`.
+5. Execute as: Me.
+6. Who has access: Anyone.
+7. Deploy.
+8. Upload the GitHub files and commit.
+9. Wait for GitHub Pages, then hard refresh with Ctrl+Shift+R.
 
 ## Test
-Create one new expense with a small JPG/PNG/PDF attachment. Then verify:
-- Expense row shows `View attachment`.
-- `17_EXPENSES` has a value in `Attachment_URL`.
-- `27_ATTACHMENTS` has a new row.
-- Google Drive contains the actual file in the correct Expense Proof / Business Expenses folder.
+Open an event → Payments. It should load through one payment workspace request plus the quotation request, instead of five competing requests.
 
-Existing expenses created before this hotfix will not gain their previously selected files automatically; those files were never uploaded and must be attached again later if needed.
+Important: if a Record Payment action ever times out, check payment history / `14_PAYMENTS` before submitting it again.

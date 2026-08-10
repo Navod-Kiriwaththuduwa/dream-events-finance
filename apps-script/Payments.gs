@@ -23,7 +23,13 @@ function mapEventBase_(r,user){
   const c=findOne_('02_CUSTOMERS','Customer_ID',r.Customer_ID);
   return {eventId:r.Event_ID,name:r.Event_Name,type:r.Event_Type,customerId:r.Customer_ID,customerName:c?c.Customer_Name:'',date:formatDateOnly_(r.Event_Date),startTime:r.Start_Time||'',endTime:r.End_Time||'',venue:r.Venue,guestCount:Number(r.Guest_Count||0),coordinator:r.Coordinator||'',status:r.Status,confirmedValue:user&&user.Role==='FINANCE_HEAD'?Number(r.Confirmed_Value||0):null,notes:r.Notes||''};
 }
-function listInvoices_(user,data){ requireFinance_(user);let rows=getRows_('11_INVOICES');if(data&&data.eventId)rows=rows.filter(x=>x.Event_ID===data.eventId);return rows.sort((a,b)=>String(b.Created_At||'').localeCompare(String(a.Created_At||''))).map(x=>mapInvoice_(x,user)); }
+function listInvoices_(user,data){
+  requireFinance_(user);
+  if(data&&data.workspace&&data.eventId)return paymentWorkspace_(user,data);
+  let rows=getRows_('11_INVOICES');
+  if(data&&data.eventId)rows=rows.filter(x=>x.Event_ID===data.eventId);
+  return rows.sort((a,b)=>String(b.Created_At||'').localeCompare(String(a.Created_At||''))).map(x=>mapInvoice_(x,user));
+}
 function getInvoice_(user,data){ requireFinance_(user);requireFields_(data,['invoiceId']);const r=findOne_('11_INVOICES','Invoice_ID',data.invoiceId);if(!r)throw new Error('Invoice not found.');return mapInvoice_(r,user); }
 function createInvoiceFromQuotation_(user,data){
   requireFinance_(user);requireFields_(data,['quotationId','invoiceDate','dueDate']);const q=findOne_('09_QUOTATIONS','Quotation_ID',data.quotationId);if(!q)throw new Error('Quotation not found.');if(q.Status!=='ACCEPTED')throw new Error('Only an accepted quotation can be invoiced.');
@@ -63,4 +69,73 @@ function recordPayment_(user,data){
 function customerOutstandingForEvent_(eventId){
   const invoices=getRows_('11_INVOICES').filter(x=>x.Event_ID===eventId&&x.Status!=='CANCELLED');if(invoices.length)return paymentRound_(invoices.reduce((a,i)=>a+invoiceComputed_(i).outstanding,0));
   const e=findOne_('03_EVENTS','Event_ID',eventId);if(!e)return 0;const income=getRows_('16_INCOME').filter(x=>x.Event_ID===eventId&&x.Approval_Status==='APPROVED').reduce((a,b)=>a+Number(b.Amount||0),0);return paymentRound_(Math.max(0,Number(e.Confirmed_Value||0)-income));
+}
+
+// V1.5.3: lightweight payment workspace used by the Payments tab.
+// It deliberately avoids invoice lines, event/customer expansion and nested receipt/invoice mapping.
+function paymentWorkspace_(user,data){
+  requireFinance_(user);
+  requireFields_(data,['eventId']);
+  const eventId=String(data.eventId||'');
+
+  const invoiceRows=getRows_('11_INVOICES').filter(x=>String(x.Event_ID)===eventId);
+  const planRows=getRows_('13_PAYMENT_PLANS').filter(x=>String(x.Event_ID)===eventId&&x.Status!=='SUPERSEDED');
+  const paymentRows=getRows_('14_PAYMENTS').filter(x=>String(x.Event_ID)===eventId);
+  const receiptRows=getRows_('15_RECEIPTS').filter(x=>String(x.Event_ID)===eventId);
+
+  const paidByInvoice={};
+  paymentRows.filter(x=>x.Status==='APPROVED').forEach(x=>{
+    const id=String(x.Invoice_ID||'');
+    paidByInvoice[id]=(paidByInvoice[id]||0)+Number(x.Amount||0);
+  });
+
+  const invoices=invoiceRows.map(r=>{
+    const paid=paymentRound_(paidByInvoice[String(r.Invoice_ID)]||0);
+    const total=paymentRound_(r.Final_Total);
+    const outstanding=paymentRound_(Math.max(0,total-paid));
+    let status=r.Status||'ISSUED';
+    if(status!=='CANCELLED'){
+      if(outstanding<=0)status='PAID';
+      else if(formatDateOnly_(r.Due_Date)&&formatDateOnly_(r.Due_Date)<formatDateOnly_(new Date()))status='OVERDUE';
+      else if(paid>0)status='PARTIALLY_PAID';
+      else status='ISSUED';
+    }
+    return {
+      invoiceId:r.Invoice_ID,
+      invoiceNumber:r.Invoice_Number,
+      eventId:r.Event_ID,
+      customerId:r.Customer_ID,
+      quotationId:r.Quotation_ID,
+      invoiceDate:formatDateOnly_(r.Invoice_Date),
+      dueDate:formatDateOnly_(r.Due_Date),
+      subtotal:Number(r.Subtotal||0),
+      discount:Number(r.Discount||0),
+      finalTotal:Number(r.Final_Total||0),
+      amountPaid:paid,
+      outstanding:outstanding,
+      status:status,
+      pdfUrl:r.PDF_URL||'',
+      createdAt:r.Created_At
+    };
+  }).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+
+  const paymentPlans=planRows.map(mapPaymentPlan_).sort((a,b)=>Number(a.sequence||0)-Number(b.sequence||0));
+  const payments=paymentRows.map(mapPayment_).sort((a,b)=>String(b.paymentDate||'').localeCompare(String(a.paymentDate||'')));
+  const receipts=receiptRows.map(r=>({
+    receiptId:r.Receipt_ID,
+    receiptNumber:r.Receipt_Number,
+    paymentId:r.Payment_ID,
+    eventId:r.Event_ID,
+    customerId:r.Customer_ID,
+    invoiceId:r.Invoice_ID,
+    amount:Number(r.Amount||0),
+    receiptDate:formatDateOnly_(r.Receipt_Date),
+    paymentMethod:r.Payment_Method,
+    reference:r.Reference||'',
+    remainingBalance:Number(r.Remaining_Balance||0),
+    pdfUrl:r.PDF_URL||'',
+    createdAt:r.Created_At
+  })).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+
+  return {invoices:invoices,paymentPlans:paymentPlans,payments:payments,receipts:receipts};
 }
