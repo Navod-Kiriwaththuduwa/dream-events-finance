@@ -350,8 +350,56 @@
 </div>
 </form>`);
     $('#budgetLineForm').onsubmit=async e=>{
-      e.preventDefault(); const fd=new FormData(e.target); const data=Object.fromEntries(fd); data.quotationVisible=level==='MAIN'?true:fd.has('quotationVisible'); data.eventId=state.currentEvent.eventId; data.level=level; data.parentLineId=parentLineId||''; data.internalNotes=data.internalNotes||'';
-      try{ if(existing){data.budgetLineId=existing.budgetLineId;await API.request('updateBudgetLine',data)}else await API.request('createBudgetLine',data); closeModal(); toast(existing?'Budget item updated.':'Budget item added.'); await renderEventBudget(); }catch(err){toast(err.message,'error')}
+      const form = $('#budgetLineForm');
+const saveBtn = $('#budgetLineSaveBtn');
+
+// Never allow Enter to accidentally save the budget item.
+form.addEventListener('submit', e => e.preventDefault());
+
+form.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+  }
+});
+
+saveBtn.onclick = async () => {
+  if (!form.reportValidity()) return;
+
+  const fd = new FormData(form);
+  const data = Object.fromEntries(fd);
+
+  data.quotationVisible =
+    level === 'MAIN' ? true : fd.has('quotationVisible');
+
+  data.eventId = state.currentEvent.eventId;
+  data.level = level;
+  data.parentLineId = parentLineId || '';
+  data.internalNotes = data.internalNotes || '';
+
+  // Stop double-clicks while saving.
+  saveBtn.disabled = true;
+  saveBtn.textContent = existing ? 'Saving…' : 'Adding…';
+
+  try {
+    if (existing) {
+      data.budgetLineId = existing.budgetLineId;
+      await API.request('updateBudgetLine', data);
+    } else {
+      await API.request('createBudgetLine', data);
+    }
+
+    closeModal();
+    toast(existing ? 'Budget item updated.' : 'Budget item added.');
+    await renderEventBudget();
+
+  } catch (err) {
+    toast(err.message, 'error');
+
+    // Keep the form open so nothing entered is lost.
+    saveBtn.disabled = false;
+    saveBtn.textContent = existing ? 'Save Changes' : 'Add Item';
+  }
+};
     };
     bindModalCloseButtons();
   }
