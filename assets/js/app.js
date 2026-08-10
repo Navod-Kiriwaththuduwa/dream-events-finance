@@ -341,7 +341,14 @@
       <label>Estimated unit cost (LKR)<input type="number" min="0" step="0.01" name="estimatedUnitCost" value="${escapeHtml(existing?.estimatedUnitCost||0)}"></label><label>Customer selling price (optional)<input type="number" min="0" step="0.01" name="sellingPrice" value="${escapeHtml(existing?.sellingPrice||0)}"></label>
       <label>Actual quantity <small>Optional if linked expenses are used</small><input type="number" min="0" step="0.01" name="actualQty" value="${escapeHtml(existing?.actualQty||0)}"></label><label>Actual unit cost (LKR)<input type="number" min="0" step="0.01" name="actualUnitCost" value="${escapeHtml(existing?.actualUnitCost||0)}"></label>
       <label class="check-label span-2"><input type="checkbox" name="quotationVisible" ${existing?.quotationVisible===false?'':'checked'}> Allow this Detailed Item on quotation only when its Sub Item has no grouped selling price</label>`;
-    showModal(`${existing?'Edit':'Add'} ${labels[level]}`,`<form id="budgetLineForm" class="form-grid"><label class="span-2">${labels[level]} name<input name="name" required value="${escapeHtml(name)}" placeholder="${level==='MAIN'?'Decoration':level==='SUB'?'Flowers':'White Roses'}"></label>${extra}<label class="span-2">${level==='MAIN'?'Description':'Internal notes'}<textarea name="internalNotes">${escapeHtml(existing?.internalNotes||existing?.description||'')}</textarea></label><div class="form-actions span-2"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">${existing?'Save Changes':'Add Item'}</button></div></form>`);
+    showModal(`${existing?'Edit':'Add'} ${labels[level]}`,`<form id="budgetLineForm" class="form-grid"><label class="span-2">${labels[level]} name<input name="name" required value="${escapeHtml(name)}" placeholder="${level==='MAIN'?'Decoration':level==='SUB'?'Flowers':'White Roses'}"></label>${extra}<label class="span-2">${level==='MAIN'?'Description':'Internal notes'}<textarea name="internalNotes">${escapeHtml(existing?.internalNotes||existing?.description||'')}</textarea></label>
+    <div class="form-actions span-2">
+  <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+  <button type="button" id="budgetLineSaveBtn" class="btn btn-primary">
+    ${existing?'Save Changes':'Add Item'}
+  </button>
+</div>
+</form>`);
     $('#budgetLineForm').onsubmit=async e=>{
       e.preventDefault(); const fd=new FormData(e.target); const data=Object.fromEntries(fd); data.quotationVisible=level==='MAIN'?true:fd.has('quotationVisible'); data.eventId=state.currentEvent.eventId; data.level=level; data.parentLineId=parentLineId||''; data.internalNotes=data.internalNotes||'';
       try{ if(existing){data.budgetLineId=existing.budgetLineId;await API.request('updateBudgetLine',data)}else await API.request('createBudgetLine',data); closeModal(); toast(existing?'Budget item updated.':'Budget item added.'); await renderEventBudget(); }catch(err){toast(err.message,'error')}
