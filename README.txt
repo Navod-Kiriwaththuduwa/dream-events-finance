@@ -1,13 +1,23 @@
-Dream Events Finance V1.6.1 — UI Header Crop Fix
+Dream Events Finance V1.8.1 — Administration Form Hotfix
 
-GitHub only:
-1. Replace index.html
-2. Add assets/css/ops-ui-fix.css
-3. Commit: Fix cropped operations section headings
-4. Wait for GitHub Pages update and press Ctrl + Shift + R.
+Fixes Administration forms closing or submitting before the user intentionally saves.
 
-No Google Apps Script change or redeployment is needed.
+Fixes:
+- Edit User stays open while filling the form.
+- Change My Password stays open while filling the form.
+- Create User gets the same protection.
+- Enter in an input/select no longer prematurely submits Administration forms.
+- Accidental clicks on the dark modal backdrop no longer close an Administration form.
+- Submit buttons are protected from accidental double-submit while the request is running.
 
-Fixes the clipped gold section labels on:
-- Inventory: REUSABLE ASSETS / EVENT USE
-- Payables: OUTSTANDING & SETTLED / PAYMENT HISTORY
+INSTALL — GITHUB ONLY
+1. Replace index.html.
+2. Add assets/js/admin-form-hotfix.js.
+3. Commit, for example:
+   V1.8.1 administration form hotfix
+4. Wait for GitHub Pages.
+5. Press Ctrl + Shift + R.
+
+NO GOOGLE APPS SCRIPT CHANGE.
+NO DEPLOYMENT REQUIRED.
+DO NOT run setupDreamEvents().
