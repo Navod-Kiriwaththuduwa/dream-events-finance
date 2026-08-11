@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/css/ops-ui-fix.css" />
   <link rel="stylesheet" href="assets/css/reports.css" />
   <link rel="stylesheet" href="assets/css/admin.css" />
+  <link rel="stylesheet" href="assets/css/mobile-responsive.css" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
@@ -29,6 +30,7 @@
       <p id="demoHint" class="demo-hint"></p>
     </div>
   </section>
+
   <div id="appView" class="app-shell hidden">
     <aside class="sidebar">
       <div class="sidebar-brand">
@@ -53,6 +55,7 @@
         <button id="logoutBtn" class="btn btn-ghost full">Sign out</button>
       </div>
     </aside>
+
     <main class="main-area">
       <header class="topbar">
         <button id="menuBtn" class="menu-btn" aria-label="Open menu">☰</button>
@@ -62,13 +65,16 @@
       <section id="content" class="content"></section>
     </main>
   </div>
+
   <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-head"><h3 id="modalTitle"></h3><button id="modalClose" class="icon-btn">×</button></div>
       <div id="modalBody"></div>
     </div>
   </div>
+
   <iframe id="apiBridge" name="apiBridge" class="api-bridge" title="API bridge"></iframe>
+
   <script src="assets/js/config.js"></script>
   <script src="assets/js/api.js"></script>
   <script src="assets/js/api-hotfix.js"></script>

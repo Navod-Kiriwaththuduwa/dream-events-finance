@@ -1,0 +1,81 @@
+
+@media (max-width:780px){
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+.app-shell,.main-area{width:100%;min-width:0}
+.topbar{height:76px;min-height:76px;padding:10px;gap:7px;align-items:center}
+.menu-btn{display:grid;place-items:center;flex:0 0 38px;width:38px;height:42px;padding:0;font-size:28px;line-height:1}
+.topbar>div:not(.top-actions){min-width:0;flex:1 1 0;overflow:hidden}
+#pageEyebrow{margin-bottom:2px;font-size:9px;line-height:1.1;letter-spacing:.13em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pageTitle{max-width:100%;margin:0;font-size:21px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-actions{flex:0 0 auto;margin-left:0;gap:5px}
+.top-actions .btn-secondary{display:inline-flex!important}
+.top-actions .btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px;border-radius:10px;font-size:12px}
+.content{width:100%;max-width:100%;padding:16px 12px 36px;overflow-x:hidden}
+.panel{padding:16px;border-radius:14px}
+.hero-card{padding:21px 18px;border-radius:15px}
+.hero-card h3{font-size:24px;line-height:1.12}
+.metric-grid{gap:11px}
+.metric-card{padding:16px;border-radius:14px}
+.metric-card strong{font-size:22px;overflow-wrap:anywhere}
+.toolbar{gap:10px}
+.toolbar .btn{width:100%;min-height:46px}
+.event-cards{gap:12px}
+.event-card{min-width:0;padding:16px;border-radius:15px}
+.event-card-top{gap:10px;align-items:flex-start;margin-bottom:15px}
+.event-card-top small{min-width:0;max-width:55%;font-size:11px;line-height:1.3;text-align:right;overflow-wrap:anywhere}
+.event-card h3{font-size:23px;line-height:1.16;overflow-wrap:anywhere}
+.event-card p{margin-bottom:14px;line-height:1.45;overflow-wrap:anywhere}
+.event-meta{display:grid;grid-template-columns:1fr;gap:8px;font-size:12px}
+.event-value{gap:12px}
+.event-value strong{min-width:0;text-align:right;overflow-wrap:anywhere}
+.card-actions .btn{min-height:46px}
+.event-detail-head{gap:14px}
+.event-detail-title{width:100%;min-width:0}
+.event-detail-title h3{margin-top:8px;font-size:25px;line-height:1.12;overflow-wrap:anywhere}
+.event-detail-title p{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.event-head-actions{display:grid;grid-template-columns:1fr;gap:8px;width:100%}
+.event-head-actions .btn{width:100%;min-height:46px}
+.back-link{margin-bottom:12px}
+.event-tabs{width:auto;margin:14px -12px 16px;padding:0 12px;gap:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+.event-tabs::-webkit-scrollbar{display:none}
+.event-tab{flex:0 0 auto;padding:11px 12px;font-size:13px;scroll-snap-align:start}
+.detail-grid{gap:0}
+.detail-grid>div,.detail-list>div{padding:12px 0}
+.budget-intro{gap:12px}
+.budget-intro h3{font-size:23px;line-height:1.15}
+.budget-main,.budget-sub{min-width:0}
+.budget-main-head,.budget-sub-head{padding:15px}
+.budget-main-title,.budget-sub-title{width:100%;min-width:0}
+.budget-main-head h3,.budget-sub h4{overflow-wrap:anywhere}
+.budget-main-totals{width:100%}
+.budget-main-totals span{min-width:0;padding:7px 8px}
+.budget-main-totals b{overflow-wrap:anywhere}
+.budget-sub-list{padding:12px;gap:12px}
+.budget-actions,.row-actions{max-width:100%;flex-wrap:wrap}
+.budget-detail-table{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.table-panel{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain}
+.table-panel table{min-width:680px}
+input,select,textarea{font-size:16px}
+.form-grid{gap:13px}
+.form-actions{width:100%;flex-direction:column-reverse;gap:8px}
+.form-actions .btn{width:100%;min-height:45px}
+.modal{padding:8px;align-items:center}
+.modal-card{width:100%;max-height:calc(100dvh - 16px);border-radius:14px}
+.modal-head{position:sticky;top:0;z-index:2;padding:15px 16px;background:#fff}
+.modal-head h3{min-width:0;padding-right:8px;font-size:21px;line-height:1.15;overflow-wrap:anywhere}
+.modal #modalBody{padding:16px}
+.sidebar{width:min(82vw,300px);left:-310px;height:100dvh;padding-top:18px}
+.nav-open .sidebar{left:0}
+.toast{left:12px;right:12px;bottom:12px;max-width:none;text-align:center}
+}
+@media (max-width:390px){
+.topbar{height:72px;min-height:72px;padding:8px 7px;gap:4px}
+.menu-btn{flex-basis:34px;width:34px;height:38px;font-size:25px}
+#pageTitle{font-size:18px}
+#pageEyebrow{font-size:8px}
+.top-actions{gap:4px}
+.top-actions .btn{min-height:36px;padding:8px 7px;font-size:11px}
+.content{padding-left:10px;padding-right:10px}
+.event-tabs{margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px}
+.panel,.event-card{padding:14px}
+}
