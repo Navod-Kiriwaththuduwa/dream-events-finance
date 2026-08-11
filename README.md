@@ -1,58 +1,74 @@
-# Dream Events Finance V1.7.0 — Reports & Profit Analysis
+# Dream Events Finance V1.8.0 — Administration
 
-Adds:
-- Event Profitability Portfolio
-- Confirmed sales, cash received, estimated cost, current event cost
-- Projected profit and projected margin
-- Customer outstanding
-- Inventory use cost and event labour cost
-- Over-budget indicator
-- Event search
-- Detailed Budget vs Actual analysis
-- Main → Sub → Detailed hierarchy
-- LKR variance and variance %
-- Linked approved expense visibility
-- Over / Under / On Budget highlighting
-- Unlinked expenses, inventory and labour shown separately
+This update adds the Administration module without changing the database structure.
 
-Profit logic:
-Projected Event Profit = Confirmed Value - Current Event Cost.
+## New features
 
-Current Event Cost =
-Budget Actual Cost
-+ Approved Unlinked Event Expenses
-+ Inventory Internal-Use Cost
-+ Event Labour Cost.
+### Business Settings
+- Company name
+- Phone, email, address and registration number
+- Bank name, branch, account name and account number
+- Quotation validity days
+- Default invoice due days (stored centrally for invoice-default integration)
+- Default quotation terms
+- Currency remains locked to LKR
+- Timezone remains locked to Asia/Colombo
 
-For each detailed budget line, linked approved expenses take priority.
-If there is no linked approved expense, manually entered Actual Qty × Actual Unit Cost is used.
+The quotation validity and default quotation terms are used by new quotation drafts after this update.
 
-INSTALL — GitHub
-Replace/add:
-- index.html — replace
-- assets/css/reports.css — new
-- assets/js/reports.js — new
-- apps-script/Code.gs — replace GitHub copy
-- apps-script/Reports.gs — new
+### Users & Access
+- List users
+- Create Finance Head or Team Member accounts
+- Secure temporary password generated on user creation
+- Edit full name, role and status
+- Activate / deactivate users
+- Reset another user's password
+- Change your own password
+- Invalidate sessions when a user is deactivated or their password is reset
+- Prevent removing access from the currently logged-in Finance Head
+- Prevent leaving the system with no active Finance Head
 
-Keep all existing V1.6.1 files.
+### System
+- Total / active user counts
+- Active session count
+- Current year document counters (read-only)
+- Recent audit activity
 
-INSTALL — Google Apps Script
-1. Replace Code.gs.
-2. Create Reports.gs.
-3. Paste the supplied Reports.gs.
+## GitHub files
+
+Upload / replace:
+- `index.html` — replace
+- `assets/css/admin.css` — new
+- `assets/js/admin.js` — new
+- `apps-script/Code.gs` — replace GitHub copy
+- `apps-script/Admin.gs` — new
+- `apps-script/Quotations.gs` — replace GitHub copy
+
+Keep all existing V1.7.1 files, including the corrected `Budget.gs`.
+
+## Google Apps Script
+
+1. Replace `Code.gs`.
+2. Create a new file named `Admin.gs` and paste the supplied file.
+3. Replace `Quotations.gs`.
 4. Save.
 5. Deploy → Manage deployments → Edit → New version.
-6. Description: V1.7 reports profit analysis
-7. Execute as: Me
-8. Who has access: Anyone
+6. Description: `V1.8 administration`
+7. Keep Execute as: Me.
+8. Keep Who has access: Anyone.
 9. Deploy.
 
-Do NOT run setupDreamEvents().
+Do NOT run `setupDreamEvents()`.
 
-TEST
-1. Open Reports.
-2. Check portfolio totals.
-3. Search an event.
-4. Click the event row.
-5. Compare Budget vs Actual with the event budget and approved expenses.
+## Recommended test
+
+1. Open Administration → Business Settings and save company phone / quotation terms.
+2. Start a new quotation draft and verify the saved default terms appear.
+3. Create one Team Member test account and copy its temporary password.
+4. Sign in with the Team Member account in an Incognito window.
+5. Verify restricted Finance Head menus are hidden.
+6. Return to Finance Head → Administration → deactivate the test user.
+7. Verify the Team Member cannot continue using the system after their session is checked again.
+8. Re-enable the user if needed.
+
+No existing events, budgets, quotations, payments, expenses, suppliers, inventory or reports are deleted.

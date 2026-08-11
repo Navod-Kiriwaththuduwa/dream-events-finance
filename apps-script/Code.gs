@@ -33,6 +33,7 @@ function routeRequest_(req) {
   const user = requireSession_(req.token);
   if (action === 'logout') return logout_(req.token, user);
   if (action === 'me') return publicUser_(user);
+  if (action === 'changeMyPassword') return changeMyPassword_(user, data, req.token);
   if (action === 'dashboard') return dashboard_(user);
   if (action === 'listCustomers') return listCustomers_(user);
   if (action === 'createCustomer') return createCustomer_(user, data);
@@ -84,6 +85,13 @@ function routeRequest_(req) {
   // V1.7 Reports & Profit Analysis
   if (action === 'getReportsOverview') return getReportsOverview_(user, data);
   if (action === 'getEventProfitReport') return getEventProfitReport_(user, data);
+
+  // V1.8 Administration
+  if (action === 'getAdminBundle') return getAdminBundle_(user);
+  if (action === 'createAdminUser') return createAdminUser_(user, data);
+  if (action === 'updateAdminUser') return updateAdminUser_(user, data);
+  if (action === 'resetAdminUserPassword') return resetAdminUserPassword_(user, data);
+  if (action === 'saveAdminSettings') return saveAdminSettings_(user, data);
 
   throw new Error('Unknown action: ' + action);
 }

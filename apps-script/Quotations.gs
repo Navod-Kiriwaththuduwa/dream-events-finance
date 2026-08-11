@@ -23,7 +23,8 @@ function quotationDraftFromBudget_(user,data){
   requireFinance_(user);requireFields_(data,['eventId']);const e=findOne_('03_EVENTS','Event_ID',data.eventId);if(!e||e.Status==='ARCHIVED')throw new Error('Event not found.');
   const lines=quotationBudgetLines_(data.eventId),subtotal=quotationSubtotal_(lines),issue=formatDateOnly_(new Date()),days=Number(quotationSetting_('QUOTATION_VALIDITY_DAYS',14)||14);
   let prior=null;if(data.revisionOf)prior=findOne_('09_QUOTATIONS','Quotation_ID',data.revisionOf);
-  return {eventId:data.eventId,issueDate:issue,validUntil:quotationAddDays_(issue,days),subtotal:subtotal,discountType:'NONE',discountValue:0,discountAmount:0,finalTotal:subtotal,terms:prior?prior.Terms:'A booking advance is required to confirm the event. Remaining payment milestones can be agreed according to the event plan.',notes:prior?prior.Notes:'',lines:lines.map(mapQuotationDraftLine_)};
+  const defaultTerms=String(quotationSetting_('QUOTATION_TERMS','A booking advance is required to confirm the event. Remaining payment milestones can be agreed according to the event plan.'));
+  return {eventId:data.eventId,issueDate:issue,validUntil:quotationAddDays_(issue,days),subtotal:subtotal,discountType:'NONE',discountValue:0,discountAmount:0,finalTotal:subtotal,terms:prior?prior.Terms:defaultTerms,notes:prior?prior.Notes:'',lines:lines.map(mapQuotationDraftLine_)};
 }
 function mapQuotationDraftLine_(r){return {level:r.Level,mainItem:r.Main_Item||'',subItem:r.Sub_Item||'',description:r.Description||'',qty:Number(r.Qty||0),unitPrice:Number(r.Unit_Price||0),amount:Number(r.Amount||0),displayOrder:Number(r.Display_Order||0)};}
 function quotationRows_(quotationId){return getRows_('10_QUOTATION_LINES').filter(x=>x.Quotation_ID===quotationId).sort((a,b)=>Number(a.Display_Order||0)-Number(b.Display_Order||0));}
