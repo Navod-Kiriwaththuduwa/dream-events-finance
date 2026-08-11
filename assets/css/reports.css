@@ -1,0 +1,18 @@
+/* Dream Events V1.7 — Reports & Profit Analysis */
+.report-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.report-toolbar-actions{display:flex;gap:8px;align-items:center}
+.report-note{border:1px solid #e8dcc6;background:#fffaf0;border-radius:12px;padding:13px 15px;margin:0 0 16px;color:#5c4b2d;line-height:1.55}
+.report-table .positive{color:var(--green);font-weight:800}.report-table .negative{color:var(--red);font-weight:800}.report-table .neutral{color:var(--muted);font-weight:700}
+.report-overrun{background:#fff7f7}.report-under{background:#f7fcf9}
+.report-main-row td{background:#f7f2e9;font-family:'Playfair Display',serif;font-weight:700;font-size:15px;border-bottom:1px solid #e4d9c6}
+.report-sub-row td{background:#fcfaf7;font-weight:800;color:#544d43}.report-detail-name{padding-left:30px!important}
+.report-attention{display:inline-flex;align-items:center;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:800;white-space:nowrap}
+.report-attention.over{background:#f8e2e2;color:var(--red)}.report-attention.under{background:#e3f2eb;color:var(--green)}.report-attention.on{background:#efede9;color:#59544d}
+.report-summary-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.report-mini-card{border:1px solid var(--line);background:#fff;border-radius:13px;padding:15px}.report-mini-card span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:800}.report-mini-card strong{display:block;margin-top:7px;font-size:18px}
+.report-event-title{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.report-event-title h3{font-family:'Playfair Display',serif;font-size:25px;margin-bottom:5px}.report-event-title p{margin:0;color:var(--muted)}
+.report-extras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.report-extra-card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:15px}.report-extra-card span{display:block;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.report-extra-card strong{display:block;font-size:19px;margin-top:6px}
+.report-detail-section{margin-top:20px}.report-empty-analysis{padding:55px 25px}.report-margin-good{color:var(--green)}.report-margin-loss{color:var(--red)}
+.report-table tbody tr[data-report-event]{cursor:pointer}.report-table tbody tr[data-report-event]:hover{background:#fcfaf7}
+@media(max-width:1050px){.report-summary-strip{grid-template-columns:repeat(2,1fr)}.report-extras{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:780px){.report-toolbar{align-items:stretch;flex-direction:column}.report-toolbar-actions{width:100%}.report-toolbar-actions .btn{flex:1}.report-summary-strip,.report-extras{grid-template-columns:1fr}.report-event-title{flex-direction:column}}

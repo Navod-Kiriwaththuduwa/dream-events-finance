@@ -81,24 +81,24 @@ function routeRequest_(req) {
   if (action === 'allocateInventory') return allocateInventory_(user, data);
   if (action === 'returnInventoryAllocation') return returnInventoryAllocation_(user, data);
 
+  // V1.7 Reports & Profit Analysis
+  if (action === 'getReportsOverview') return getReportsOverview_(user, data);
+  if (action === 'getEventProfitReport') return getEventProfitReport_(user, data);
+
   throw new Error('Unknown action: ' + action);
 }
 
 function bridgeOutput_(payload, clientOrigin) {
   const allowed = getAllowedOrigin_();
-
   const target =
     (clientOrigin && (!allowed || clientOrigin === allowed))
       ? clientOrigin
       : (allowed || '*');
-
   const json = JSON.stringify(payload)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026');
-
   const targetJson = JSON.stringify(target);
-
   const html =
     '<!doctype html>' +
     '<html>' +
@@ -109,7 +109,6 @@ function bridgeOutput_(payload, clientOrigin) {
     '</script>' +
     '</body>' +
     '</html>';
-
   return HtmlService
     .createHtmlOutput(html)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
