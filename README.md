@@ -1,74 +1,85 @@
-# Dream Events Finance V1.8.0 — Administration
+# Thambili Events Rebrand — V1.9.0
 
-This update adds the Administration module without changing the database structure.
+This update changes the visible brand from **Dream Events** to **Thambili Events** and applies the supplied logo palette.
 
-## New features
+## Brand palette
+- Primary orange: `#FF4400` — sampled from the supplied logo
+- Deep orange: `#D63800`
+- Soft orange: `#FFF1EB`
+- Warm background: `#F7F6F3`
+- White: `#FFFFFF`
+- Charcoal: `#1B1816`
 
-### Business Settings
-- Company name
-- Phone, email, address and registration number
-- Bank name, branch, account name and account number
-- Quotation validity days
-- Default invoice due days (stored centrally for invoice-default integration)
-- Default quotation terms
-- Currency remains locked to LKR
-- Timezone remains locked to Asia/Colombo
+Functional green/red status colors remain because they communicate approval/error states.
 
-The quotation validity and default quotation terms are used by new quotation drafts after this update.
+## Changes
+- Browser title: Thambili Events Finance
+- Login branding: Thambili Events
+- Sidebar branding: Thambili Events
+- Supplied logo used in login + sidebar
+- Page eyebrow: THAMBILI EVENTS
+- Main buttons use Thambili orange
+- Active navigation uses Thambili orange
+- Hero/dashboard branding updated
+- Forms/focus states use orange
+- Quotation / Invoice / Receipt previews are rebranded
+- Printed quotation / invoice / receipt output is rebranded
+- "Dream Events Cash/Bank" display labels become "Thambili Events Cash/Bank"
+- Google Drive helper wording is rebranded
+- Administration company name is migrated to Thambili Events
+- Existing database and Drive folder names can be safely renamed
 
-### Users & Access
-- List users
-- Create Finance Head or Team Member accounts
-- Secure temporary password generated on user creation
-- Edit full name, role and status
-- Activate / deactivate users
-- Reset another user's password
-- Change your own password
-- Invalidate sessions when a user is deactivated or their password is reset
-- Prevent removing access from the currently logged-in Finance Head
-- Prevent leaving the system with no active Finance Head
+## IMPORTANT — intentionally NOT changed
+For production compatibility, these stay unchanged:
+- Existing `DE-EVT`, `DE-QTN`, `DE-INV`, etc. record IDs
+- `DREAM_EVENTS_CONFIG` JavaScript variable name
+- `DREAM_EVENTS_*` Script Properties
+- session key
+- Apps Script deployment URL
+- GitHub repository / GitHub Pages URL
 
-### System
-- Total / active user counts
-- Active session count
-- Current year document counters (read-only)
-- Recent audit activity
+Changing these is a separate migration and is not needed for the visible company rebrand.
 
-## GitHub files
+# Installation
 
-Upload / replace:
-- `index.html` — replace
-- `assets/css/admin.css` — new
-- `assets/js/admin.js` — new
-- `apps-script/Code.gs` — replace GitHub copy
-- `apps-script/Admin.gs` — new
-- `apps-script/Quotations.gs` — replace GitHub copy
+## A. GitHub
+Replace:
+- `index.html`
+- `assets/js/config.js`
 
-Keep all existing V1.7.1 files, including the corrected `Budget.gs`.
+Add:
+- `assets/js/branding.js`
+- `assets/css/thambili-theme.css`
+- `assets/img/thambili-logo.png`
 
-## Google Apps Script
+Keep all existing files, including:
+- `assets/css/mobile-responsive.css`
+- `assets/js/api-hotfix.js`
+- `assets/js/admin-form-hotfix.js`
+- `assets/js/my-account.js`
 
-1. Replace `Code.gs`.
-2. Create a new file named `Admin.gs` and paste the supplied file.
-3. Replace `Quotations.gs`.
-4. Save.
-5. Deploy → Manage deployments → Edit → New version.
-6. Description: `V1.8 administration`
-7. Keep Execute as: Me.
-8. Keep Who has access: Anyone.
-9. Deploy.
+Commit example:
+`V1.9 rebrand to Thambili Events`
 
-Do NOT run `setupDreamEvents()`.
+Wait for GitHub Pages, then hard refresh.
 
-## Recommended test
+## B. Google Apps Script — one-time brand migration
+Create a new file:
+- `Branding.gs`
 
-1. Open Administration → Business Settings and save company phone / quotation terms.
-2. Start a new quotation draft and verify the saved default terms appear.
-3. Create one Team Member test account and copy its temporary password.
-4. Sign in with the Team Member account in an Incognito window.
-5. Verify restricted Finance Head menus are hidden.
-6. Return to Finance Head → Administration → deactivate the test user.
-7. Verify the Team Member cannot continue using the system after their session is checked again.
-8. Re-enable the user if needed.
+Paste the supplied `apps-script/Branding.gs`.
 
-No existing events, budgets, quotations, payments, expenses, suppliers, inventory or reports are deleted.
+Save, then from the function dropdown select:
+`applyThambiliBranding`
+
+Click **Run** once.
+
+This updates only the company display name and renames the existing DB/Drive container by ID.
+It does NOT reset the database or counters.
+
+**Do NOT run `setupDreamEvents()`.**
+
+No Web App redeployment is required for this Branding.gs migration.
+
+## Result
+The user-facing system and customer documents will show **Thambili Events** with the orange/white/charcoal brand palette.

@@ -1,0 +1,152 @@
+/*
+  Thambili Events brand theme
+  Primary orange sampled from the supplied logo: #FF4400
+*/
+:root{
+  --ink:#1b1816;
+  --ink2:#2d2723;
+  --gold:#ff4400;
+  --gold2:#ff7540;
+  --cream:#f7f6f3;
+  --paper:#ffffff;
+  --muted:#716a66;
+  --line:#eadfd9;
+  --amber:#cf581f;
+  --shadow:0 16px 45px rgba(56,25,13,.08);
+}
+
+html,body{background:var(--cream)}
+body{color:var(--ink)}
+
+::selection{background:#ffd2c1;color:#1b1816}
+
+.login-shell{
+  background:
+    radial-gradient(circle at 20% 0,rgba(255,68,0,.92) 0,rgba(67,25,10,.96) 45%,#151311 100%);
+}
+.login-panel{
+  border:1px solid rgba(255,68,0,.13);
+}
+.eyebrow{color:var(--gold)}
+
+.thambili-logo{
+  overflow:hidden;
+  border-radius:50%;
+  background:#f0f0f0;
+  flex:0 0 auto;
+  box-shadow:0 5px 18px rgba(255,68,0,.16);
+}
+.thambili-logo img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+}
+.thambili-logo-login{
+  width:78px;
+  height:78px;
+  margin:0 0 20px;
+}
+.thambili-logo-sidebar{
+  width:42px;
+  height:42px;
+}
+
+.sidebar{background:#1b1816}
+.sidebar-brand strong{color:#fff}
+.sidebar-brand span{color:#aaa19b}
+.nav-item{color:#c9c1bc}
+.nav-item:hover{background:#302923;color:#fff}
+.nav-item.active{
+  background:#ff4400;
+  color:#fff;
+}
+.badge{
+  background:#fff;
+  color:#ff4400;
+}
+.sidebar-footer{border-top-color:#3c312b}
+.sidebar .btn-ghost{border-color:#514139;color:#f4ece8}
+
+.topbar{
+  background:rgba(247,246,243,.95);
+  border-bottom-color:#eadfd9;
+}
+
+.btn-primary{
+  background:#ff4400;
+  color:#fff;
+}
+.btn-primary:hover{background:#e83e00}
+.btn-secondary{
+  background:#ffe3d8;
+  color:#8f2600;
+}
+.btn-secondary:hover{background:#ffd6c6}
+.btn-success{background:#e7f4ee}
+.btn-danger{background:#f9e7e7}
+
+input:focus,select:focus,textarea:focus{
+  border-color:#ff4400;
+  box-shadow:0 0 0 3px rgba(255,68,0,.12);
+}
+
+.hero-card{
+  background:linear-gradient(125deg,#ff4400,#d63800);
+  box-shadow:0 18px 44px rgba(180,50,0,.18);
+}
+.hero-card p:not(.eyebrow){color:#fff2ed}
+.hero-card .eyebrow{color:#fff}
+.hero-card .btn-light{color:#b83200}
+
+.text-btn{color:#ff4400}
+.budget-kicker{color:#ff4400}
+.budget-guidance,.report-note{
+  border-color:#ffd0be;
+  background:#fff5f1;
+  color:#77301a;
+}
+.quote-chip,.detail-visible-badge{
+  background:#fff0ea;
+  color:#c73900!important;
+}
+.budget-main-totals span{border-left-color:#f0d6cb}
+.budget-subtotal-row{
+  background:#fff6f2;
+  border-top-color:#f0d1c4;
+}
+.budget-collapse-btn:hover,.icon-action:hover{
+  border-color:#ffb89d;
+  background:#fff4ef;
+}
+
+.status.pending,.status.planning,.status.quotation,.status.preparation{
+  background:#fff0e9;
+  color:#bd3d0b;
+}
+
+.admin-tab.active{border-bottom-color:#ff4400}
+.admin-warning{
+  background:#fff4ee;
+  border-color:#ffc9b4;
+  color:#7c3218;
+}
+.admin-password-box{background:#211a17}
+
+/* Customer-facing quotation / invoice / receipt previews */
+.quotation-brand{border-bottom-color:#ff4400!important}
+.quotation-logo{
+  border-color:#ff4400!important;
+  color:#d63800!important;
+  background:#fff2ed;
+}
+.quotation-title span{color:#ff4400!important}
+.quote-group-head{background:#fff1eb!important}
+.quotation-authorized strong{color:#d63800}
+.quotation-footer{border-top-color:#ecd9d1!important}
+
+/* mobile */
+@media(max-width:780px){
+  .thambili-logo-sidebar{width:38px;height:38px}
+  .top-actions .btn-primary{background:#ff4400}
+}

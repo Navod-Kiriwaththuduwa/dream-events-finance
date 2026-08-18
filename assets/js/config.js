@@ -5,7 +5,9 @@ window.DREAM_EVENTS_CONFIG = {
   // Real Google Sheets database
   DEMO_MODE: false,
 
-  APP_NAME: 'Dream Events Finance',
+  // Display brand updated to Thambili Events.
+  // Technical DREAM_EVENTS_* names are intentionally retained for production compatibility.
+  APP_NAME: 'Thambili Events Finance',
   SESSION_KEY: 'dream_events_session_v1',
   CURRENCY: 'LKR',
   COMPANY_PHONE: '+94 70 628 0480'

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#15130f" />
-  <title>Dream Events Finance</title>
+  <meta name="theme-color" content="#FF4400" />
+  <title>Thambili Events Finance</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -13,13 +13,17 @@
   <link rel="stylesheet" href="assets/css/reports.css" />
   <link rel="stylesheet" href="assets/css/admin.css" />
   <link rel="stylesheet" href="assets/css/mobile-responsive.css" />
+  <link rel="stylesheet" href="assets/css/thambili-theme.css" />
 </head>
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
+
   <section id="loginView" class="login-shell">
     <div class="login-panel">
-      <div class="brand-mark">DE</div>
-      <p class="eyebrow">DREAM EVENTS</p>
+      <div class="thambili-logo thambili-logo-login">
+        <img src="assets/img/thambili-logo.png" alt="Thambili Events logo" />
+      </div>
+      <p class="eyebrow">THAMBILI EVENTS</p>
       <h1>Finance & Event Management</h1>
       <p class="muted">Control budgets, customer money, expenses and event profitability from one place.</p>
       <form id="loginForm" class="stack-lg">
@@ -34,8 +38,10 @@
   <div id="appView" class="app-shell hidden">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <div class="brand-mark small">DE</div>
-        <div><strong>Dream Events</strong><span>Finance Platform</span></div>
+        <div class="thambili-logo thambili-logo-sidebar">
+          <img src="assets/img/thambili-logo.png" alt="Thambili Events logo" />
+        </div>
+        <div><strong>Thambili Events</strong><span>Finance Platform</span></div>
       </div>
       <nav id="mainNav" class="nav-list">
         <button data-route="dashboard" class="nav-item active">Dashboard</button>
@@ -59,7 +65,7 @@
     <main class="main-area">
       <header class="topbar">
         <button id="menuBtn" class="menu-btn" aria-label="Open menu">☰</button>
-        <div><p class="eyebrow" id="pageEyebrow">DREAM EVENTS</p><h2 id="pageTitle">Dashboard</h2></div>
+        <div><p class="eyebrow" id="pageEyebrow">THAMBILI EVENTS</p><h2 id="pageTitle">Dashboard</h2></div>
         <div class="top-actions"><button id="quickExpenseBtn" class="btn btn-secondary">+ Expense</button><button id="quickIncomeBtn" class="btn btn-primary">+ Income</button></div>
       </header>
       <section id="content" class="content"></section>
@@ -76,6 +82,7 @@
   <iframe id="apiBridge" name="apiBridge" class="api-bridge" title="API bridge"></iframe>
 
   <script src="assets/js/config.js"></script>
+  <script src="assets/js/branding.js"></script>
   <script src="assets/js/api.js"></script>
   <script src="assets/js/api-hotfix.js"></script>
   <script src="assets/js/app.js"></script>
